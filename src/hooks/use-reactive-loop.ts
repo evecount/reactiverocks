@@ -6,6 +6,9 @@ import * as handPoseDetection from '@tensorflow-models/hand-pose-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import '@tensorflow/tfjs-backend-wasm';
 import { setBackend } from '@tensorflow/tfjs-core';
+// By explicitly importing this, we ensure its side effects are run, making it available for the hand-pose-detection model.
+import '@mediapipe/hands';
+
 
 type OnGestureCallback = (keypoints: handPoseDetection.Keypoint[]) => void;
 
