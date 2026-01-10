@@ -64,7 +64,7 @@ Game state:
 async function runTTS(text: string): Promise<string | undefined> {
   try {
     const {media} = await ai.generate({
-      model: googleAI.model('gemini-2.5-flash-preview-tts'),
+      model: googleAI.model('gemini-2.5-flash-tts'),
       config: {
         responseModalities: ['AUDIO'],
         speechConfig: {
