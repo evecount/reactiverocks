@@ -266,7 +266,7 @@ export default function GameUI() {
 
           <div className="flex items-center gap-4 bg-black/50 backdrop-blur-sm p-3 rounded-lg neon-glow">
              <div className="flex-1 text-right w-24">
-              <p className="font-headline text-accent truncate">QUINCE</p>
+              <p className="font-headline text-accent truncate">QUIP</p>
               <p className="font-bold text-4xl digital-font text-white">{aiScore}</p>
             </div>
             <Bot className="w-8 h-8 text-accent" />
@@ -293,7 +293,7 @@ export default function GameUI() {
         </div>
 
         {/* Footer: Controls and Commentary */}
-        <div className="relative w-full max-w-2xl mx-auto flex flex-col items-center gap-4">
+        <div className="relative w-full max-w-4xl mx-auto flex flex-col items-center gap-4">
           <Card className="bg-card backdrop-blur-sm w-full neon-glow">
               <CardContent className="p-3 text-sm font-code">
                   {hasName && fluidityScore !== null ? (
@@ -363,16 +363,16 @@ export default function GameUI() {
               )}
             </div>
             
-            <div className='flex-1 flex justify-end items-center'>
+            <div className='flex-1 flex justify-end items-center gap-4'>
                {hasName && (
                 <Button 
                     variant="destructive" 
                     onClick={handleEndSession}
                     disabled={gameState === 'ending'}
-                    className="neon-glow bg-destructive/80 hover:bg-destructive mr-4"
+                    className="neon-glow bg-destructive/80 hover:bg-destructive"
                 >
                     <Square className="w-4 h-4 mr-2" />
-                    End Session
+                    End
                 </Button>
             )}
               <Link href="/leaderboard" passHref>
@@ -400,5 +400,3 @@ export default function GameUI() {
     </div>
   );
 }
-
-    

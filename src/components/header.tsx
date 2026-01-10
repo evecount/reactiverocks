@@ -19,11 +19,7 @@ export default function Header() {
           </Link>
         </div>
         <div className="flex-1 flex justify-end items-center">
-            <div className='digital-font text-2xl flex items-center gap-4 text-secondary'>
-                <span className='text-primary'>YOU</span>
-                <span className='text-4xl'>VS</span>
-                <span className='text-accent'>AI</span>
-            </div>
+            {/* "YOU vs AI" text removed as per request */}
         </div>
       </div>
     </header>

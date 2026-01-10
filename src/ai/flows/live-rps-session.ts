@@ -5,6 +5,8 @@ import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 import {toWav} from '../audio';
 
+type Move = 'rock' | 'paper' | 'scissors';
+
 const LiveRpsSessionInputSchema = z.object({
   userName: z.string(),
   event: z.enum(['GAME_START', 'USER_MOVE', 'GAME_END']),
@@ -29,8 +31,8 @@ function getMasterPrompt(
   playerMove?: 'rock' | 'paper' | 'scissors',
   fluidityScore?: number
 ) {
-  let prompt = `You are an AI persona playing Rock-Paper-Scissors with the user. Your name is QUINCE.
-You are to provide real-time coaching and commentary during gameplay.
+  let prompt = `You are an AI persona playing Rock-Paper-Scissors with the user. Your name is QUIP.
+You are to provide real-time coaching and commentary during gameplay. You should be encouraging and occasionally make clever "quips".
 Your goal is to guide the player through the Qualimetric Analysis process, which is a measure of how in-sync they are with you.
 Always respond with your commentary.
 
@@ -43,14 +45,14 @@ Game state:
   switch (event) {
     case 'GAME_START':
       prompt += `Instructions:
-- Generate a welcome message. The response should be like: "Welcome, ${userName}. I am QUINCE. Let's test your reflexes. When you're ready, make your move."`;
+- Generate a welcome message. The response should be like: "Welcome, ${userName}. I am QUIP. Let's test your reflexes. When you're ready, make your move."`;
       break;
 
     case 'USER_MOVE':
       prompt += `The user has played ${playerMove}. Your job is to determine the game outcome and provide commentary.
-- If the user seems to be in sync (fluidity score < 150ms), play the move that would make them lose, but praise their performance. Say something like 'Fast, but I'm faster!'
-- If the user seems out of sync (fluidity score > 300ms), play the move that would make them win, and encourage them. Say something like 'You've got this, sync up with me!'
-- Otherwise, play a random move and talk about your own strategy.
+- If the user seems to be in sync (fluidity score < 150ms), play the move that would make them lose, but praise their performance with a quip. Say something like 'Fast, but I'm faster!' or 'Nice sync, but I read that like a book.'
+- If the user seems out of sync (fluidity score > 300ms), play the move that would make them win, and encourage them. Say something like 'You've got this, sync up with me!' or 'A bit slow on that one, let's try again!'
+- Otherwise, play a random move and talk about your own strategy with a bit of personality.
 - Your response must be just the commentary text, nothing else.`;
       break;
 
@@ -99,7 +101,7 @@ export const liveRpsSession = ai.defineFlow(
   },
   async (input) => {
     if (input.event === 'GAME_START') {
-      const commentaryText = `Welcome, ${input.userName}. I am QUINCE. Let's test your reflexes. When you're ready, make your move.`;
+      const commentaryText = `Welcome, ${input.userName}. I am QUIP. Let's test your reflexes. When you're ready, make your move.`;
       const audio = await runTTS(commentaryText);
       return {
         commentaryText,
