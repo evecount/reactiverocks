@@ -17,7 +17,7 @@ export default function Header() {
               "font-headline text-3xl sm:text-4xl font-bold animated-gradient-text flex items-center",
               "text-shadow-[0_0_10px_hsl(var(--primary))]"
             )}>
-              REACTIVE <Gem className="h-8 w-8 text-primary inline-block mx-2" /> ROCKS
+              REACTIVE <Gem className="h-7 w-7 text-primary inline-block mx-2" /> ROCKS
             </span>
           </Link>
         </div>
