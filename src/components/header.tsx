@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { Gamepad2 } from 'lucide-react';
+import { Gem } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function Header() {
@@ -17,7 +17,7 @@ export default function Header() {
               "font-headline text-3xl sm:text-4xl font-bold animated-gradient-text",
               "text-shadow-[0_0_10px_hsl(var(--primary))]"
             )}>
-              REACTIVE <Gamepad2 className="h-8 w-8 text-primary inline-block" /> ROCKS
+              REACTIVE <Gem className="h-8 w-8 text-primary inline-block" /> ROCKS
             </span>
           </Link>
         </div>
