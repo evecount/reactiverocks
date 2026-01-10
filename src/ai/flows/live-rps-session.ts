@@ -154,7 +154,7 @@ export const liveRpsSession = ai.defineFlow(
 
     const llmResponse = await ai.generate({
       prompt: masterPrompt,
-      model: 'googleai/gemini-1.5-flash',
+      model: 'googleai/gemini-2.5-flash',
     });
     
     const commentaryText = llmResponse.text;
