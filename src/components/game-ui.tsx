@@ -80,6 +80,14 @@ export default function GameUI() {
     }
   }, [isMuted, playAudio]);
 
+  const resetTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setCountdown(ROUND_TIME);
+  }, []);
+
   const handlePlay = useCallback(async (move: Move) => {
     if (gameState !== 'playing' || isPending || resultMessage || move === 'none') return;
     
@@ -188,15 +196,6 @@ export default function GameUI() {
       setCommentary("Welcome, Sparring Partner. What should I call you?");
     }
   }, [hasName]);
-
-
-  const resetTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    setCountdown(ROUND_TIME);
-  }, []);
 
   const startTimer = useCallback(() => {
     resetTimer();
@@ -455,3 +454,5 @@ export default function GameUI() {
     </div>
   );
 }
+
+    
