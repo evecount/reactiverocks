@@ -1,10 +1,6 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  // Forces the builder to treat MediaPipe as a client-side bundle only
-  experimental: {
-    serverExternalPackages: ["@mediapipe/hands"],
-  },
   // High-performance images for 90s neon textures
   images: {
     unoptimized: true, 
