@@ -18,29 +18,6 @@ export const useReactiveLoop = (
   const animationFrameId = useRef<number | null>(null);
 
   useEffect(() => {
-    // ANTI-GRAVITY HANDOVER NOTE: The core hand-detection logic below has been
-    // temporarily commented out to bypass the "Export Hands not found" build error.
-    // This allows the rest of the application shell (including the camera feed) to function.
-    //
-    // TO RE-ENABLE:
-    // 1.  Uncomment the entire `initAndRunDetection` and `detect` block below.
-    // 2.  Ensure `package.json` has the correct, pinned versions for all `@tensorflow/*`
-    //     and `@mediapipe/hands` dependencies. The known-working combination is
-    //     `@tensorflow/*` at version `3.9.0` and `@mediapipe/hands` at `0.4.1635986972`.
-    // 3.  Run `npm install`.
-
-    if (isLoopActive) {
-      console.warn(
-        "REACTIVE LOOP DISABLED: Computer vision temporarily deactivated to allow build to pass. See notes in use-reactive-loop.ts"
-      );
-      // We now set `isDetecting` to true to signify the vision core is "active"
-      // even though it's not detecting gestures. This removes the "Loading" overlay.
-      setIsDetecting(true);
-    } else {
-      setIsDetecting(false);
-    }
-
-    /*
     if (!isLoopActive) {
       if (animationFrameId.current) {
         cancelAnimationFrame(animationFrameId.current);
@@ -153,6 +130,5 @@ export const useReactiveLoop = (
         detectorRef.current = null;
       }
     };
-    */
   }, [isLoopActive, videoRef, onGesture, setIsDetecting]);
 };
