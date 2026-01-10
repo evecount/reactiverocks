@@ -12,9 +12,8 @@ export default function Header() {
         </div>
         <div className="flex flex-col items-center">
           <Link href="/" className="flex items-center space-x-2">
-            <Gamepad2 className="h-6 w-6 text-primary" />
             <span className="font-headline text-lg sm:text-xl font-bold text-shadow-[0_0_10px_hsl(var(--primary))]">
-              REACTIVE ROCKS
+              REACTIVE <Gamepad2 className="h-6 w-6 text-primary inline-block" /> ROCKS
             </span>
           </Link>
         </div>
