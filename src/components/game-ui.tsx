@@ -3,8 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import { Bot, Loader, User, Send, Play, Square } from 'lucide-react';
 
-import { aiPlaysRpsAndCoachesUser } from '@/ai/flows/ai-plays-rps-and-coaches-user';
-import { calculateAndDisplayFluidityScore, type CalculateAndDisplayFluidityScoreOutput } from '@/ai/flows/calculate-and-display-fluidity-score';
 import { adaptAIToUserRhythm } from '@/ai/flows/adapt-ai-to-user-rhythm';
 import { liveRpsSession, LiveRpsSessionOutput } from '@/ai/flows/live-rps-session';
 
@@ -37,7 +35,8 @@ export default function GameUI() {
   const [result, setResult] = useState<'win' | 'lose' | 'draw' | null>(null);
   const [round, setRound] = useState(0);
   const [commentary, setCommentary] = useState("");
-  const [fluidityScoreData, setFluidityScoreData] = useState<CalculateAndDisplayFluidityScoreOutput | null>(null);
+  const [fluidityScore, setFluidityScore] = useState<number | null>(null);
+  const [fluidityCommentary, setFluidityCommentary] = useState<string>('');
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [hasName, setHasName] = useState(false);
@@ -137,7 +136,8 @@ export default function GameUI() {
             setPlayerScore(0);
             setAiScore(0);
             setRound(0);
-            setFluidityScoreData(null);
+            setFluidityScore(null);
+            setFluidityCommentary('');
         } catch (error) {
             console.error("Error ending session:", error);
             toast({
@@ -157,7 +157,7 @@ export default function GameUI() {
       setPlayerChoice(move);
       setAiChoice(null);
       setResult(null);
-      setFluidityScoreData(null);
+      setFluidityScore(null);
       setCommentary("Analyzing...")
 
       const userActionTimestamp = Date.now();
@@ -167,7 +167,7 @@ export default function GameUI() {
           userMove: move,
           userName: playerName,
           state: 'move',
-          fluidityScore: fluidityScoreData?.fluidityScore,
+          fluidityScore: fluidityScore,
         });
 
         const aiResponseTimestamp = Date.now();
@@ -190,8 +190,15 @@ export default function GameUI() {
                 setResultMessage("DRAW");
             }
             
-            const fluidityResult = await calculateAndDisplayFluidityScore({ userActionTimestamp, aiResponseTimestamp });
-            setFluidityScoreData(fluidityResult);
+            const currentFluidity = Math.abs(aiResponseTimestamp - userActionTimestamp);
+            setFluidityScore(currentFluidity);
+            if (currentFluidity < 50) {
+              setFluidityCommentary("Excellent Sync!");
+            } else if (currentFluidity < 100) {
+              setFluidityCommentary("Good timing.");
+            } else {
+              setFluidityCommentary("Out of sync.");
+            }
 
             // Play new commentary
             if (sessionAudio) sessionAudio.pause();
@@ -201,8 +208,8 @@ export default function GameUI() {
             
             if ((round + 1) % 3 === 0) {
                 await adaptAIToUserRhythm({
-                    reflexSnapshot: `Round ${round + 1}: Player chose ${move}, AI chose ${aiResult.aiMove}. Result: ${gameResult}. Fluidity: ${fluidityResult.fluidityScore}ms.`,
-                    fluidityScore: fluidityResult.fluidityScore,
+                    reflexSnapshot: `Round ${round + 1}: Player chose ${move}, AI chose ${aiResult.aiMove}. Result: ${gameResult}. Fluidity: ${currentFluidity}ms.`,
+                    fluidityScore: currentFluidity,
                     userId: 'user_12345', // Replace with actual anonymous user ID
                 });
             }
@@ -219,16 +226,7 @@ export default function GameUI() {
         setCommentary("Connection error. Please try again.");
       }
     });
-  }, [round, playerName, playerScore, aiScore, fluidityScoreData, toast, gameState, sessionAudio]);
-
-  const HealthBar = ({ score, isPlayer }: { score: number, isPlayer: boolean }) => (
-    <div className={cn("w-2/5 h-8 bg-black/50 border-2 border-primary/50 rounded-full flex items-center p-1", !isPlayer && "flex-row-reverse")}>
-      <div 
-        className="h-full bg-accent rounded-full transition-all duration-500" 
-        style={{ width: `${(score % 10) * 10 || 100}%` }}
-      ></div>
-    </div>
-  );
+  }, [round, playerName, fluidityScore, toast, gameState, sessionAudio]);
 
   return (
     <div className="fixed inset-0 w-full h-full bg-black">
@@ -281,15 +279,15 @@ export default function GameUI() {
         <div className="flex flex-col gap-4 items-center">
             <Card className="bg-card/80 backdrop-blur-sm w-full max-w-2xl">
                 <CardContent className="p-3 text-sm font-code">
-                    {hasName && fluidityScoreData ? (
+                    {hasName && fluidityScore !== null ? (
                     <div className="flex justify-between items-center">
                         <p>
                             <span className="text-muted-foreground">Fluidity: </span>
-                            <span className="text-accent font-bold">{fluidityScoreData.fluidityScore.toFixed(0)}ms</span>
+                            <span className="text-accent font-bold">{fluidityScore.toFixed(0)}ms</span>
                         </p>
                         <p className="text-right">
                             <span className="text-muted-foreground">Sync: </span>
-                            <span>{fluidityScoreData.commentary}</span>
+                            <span>{fluidityCommentary}</span>
                         </p>
                     </div>
                     ) : (

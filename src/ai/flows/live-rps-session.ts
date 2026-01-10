@@ -9,7 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { toWav } from '../audio';
 
 const LiveRpsSessionInputSchema = z.object({
@@ -53,7 +53,10 @@ Generate a welcome message.
 {{/if}}
 {{#if (eq state "move")}}
 The user played: {{userMove}}.
+Based on the rules, determine your move. Your response must include your move and the game result (win, lose, or draw for the user).
 Generate your response, move, and the game result.
+Example: If user plays rock, and you should make them win, you play scissors and the result is 'win'.
+If user plays paper, and you should make them lose, you play scissors and the result is 'lose'.
 {{/if}}
 {{#if (eq state "end")}}
 Generate a goodbye message.
