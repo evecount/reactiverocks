@@ -1,5 +1,8 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Presentation, BookText } from "lucide-react";
 
 export default function AboutPage() {
   return (
@@ -10,6 +13,18 @@ export default function AboutPage() {
           <CardDescription>The Instructional DNA of BPM Sparring</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <Link href="/pitch-deck" passHref className="flex-1">
+              <Button variant="outline" className="w-full h-16 text-lg neon-glow">
+                <Presentation className="mr-2" /> View Pitch Deck
+              </Button>
+            </Link>
+            <Link href="/whitepaper" passHref className="flex-1">
+              <Button variant="outline" className="w-full h-16 text-lg neon-glow">
+                <BookText className="mr-2" /> Read Whitepaper
+              </Button>
+            </Link>
+          </div>
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="item-1">
               <AccordionTrigger>What is Reactive AI?</AccordionTrigger>
