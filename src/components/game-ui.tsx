@@ -1,20 +1,21 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
-import { Bot, Loader, User } from 'lucide-react';
+import { Bot, Loader, User, Send } from 'lucide-react';
 
 import { aiPlaysRpsAndCoachesUser, type AIPlaysRpsAndCoachesUserOutput } from '@/ai/flows/ai-plays-rps-and-coaches-user';
 import { calculateAndDisplayFluidityScore, type CalculateAndDisplayFluidityScoreOutput } from '@/ai/flows/calculate-and-display-fluidity-score';
 import { adaptAIToUserRhythm } from '@/ai/flows/adapt-ai-to-user-rhythm';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { PaperIcon } from '@/components/icons/paper-icon';
 import { RockIcon } from '@/components/icons/rock-icon';
 import { ScissorsIcon } from '@/components/icons/scissors-icon';
 import { Separator } from './ui/separator';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from './ui/input';
 
 type Move = 'rock' | 'paper' | 'scissors';
 
@@ -24,12 +25,6 @@ const moveIcons: Record<Move, React.ComponentType<{ className?: string }>> = {
   rock: RockIcon,
   paper: PaperIcon,
   scissors: ScissorsIcon,
-};
-
-const resultColors = {
-  win: 'text-accent',
-  lose: 'text-destructive',
-  draw: 'text-muted-foreground',
 };
 
 const getResult = (playerMove: Move, aiMove: Move): 'win' | 'lose' | 'draw' => {
@@ -51,10 +46,11 @@ export default function GameUI() {
   const [aiChoice, setAiChoice] = useState<Move | null>(null);
   const [result, setResult] = useState<'win' | 'lose' | 'draw' | null>(null);
   const [round, setRound] = useState(0);
-  const [commentary, setCommentary] = useState("Welcome, Sparring Partner. Ready to test your reflexes? Make your move.");
+  const [commentary, setCommentary] = useState("");
   const [fluidityScoreData, setFluidityScoreData] = useState<CalculateAndDisplayFluidityScoreOutput | null>(null);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
-  
+  const [playerName, setPlayerName] = useState('');
+  const [hasName, setHasName] = useState(false);
   const [isPending, startTransition] = useTransition();
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
@@ -81,13 +77,32 @@ export default function GameUI() {
   }, [toast]);
   
   useEffect(() => {
+    if(!hasName) {
+        setCommentary("Welcome, Sparring Partner. What should I call you?");
+    } else {
+        setCommentary(`Alright, ${playerName}! Let's see what you've got. Make your move.`);
+    }
+  }, [hasName, playerName]);
+
+
+  useEffect(() => {
     if (resultMessage) {
       const timer = setTimeout(() => setResultMessage(null), 2000);
       return () => clearTimeout(timer);
     }
   }, [resultMessage]);
 
+  const handleNameSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (playerName.trim()) {
+      setHasName(true);
+      // Here you would also handle anonymous login and storing the user ID
+    }
+  };
+
   const handlePlay = useCallback(async (move: Move) => {
+    if (!hasName) return;
+
     startTransition(async () => {
       setPlayerChoice(move);
       setAiChoice(null);
@@ -100,7 +115,7 @@ export default function GameUI() {
       try {
         const aiResult = await aiPlaysRpsAndCoachesUser({
           userMove: move,
-          gameState: JSON.stringify({ playerScore, aiScore, round }),
+          gameState: JSON.stringify({ playerName, playerScore, aiScore, round }),
           fluidityScore: fluidityScoreData?.fluidityScore,
         });
 
@@ -129,7 +144,7 @@ export default function GameUI() {
         await adaptAIToUserRhythm({
             reflexSnapshot: `Round ${round + 1}: Player chose ${move}, AI chose ${aiResult.aiMove}. Result: ${gameResult}. Fluidity: ${fluidityResult.fluidityScore}ms.`,
             fluidityScore: fluidityResult.fluidityScore,
-            userId: 'user_12345',
+            userId: 'user_12345', // Replace with actual anonymous user ID
         });
 
       } catch (error) {
@@ -142,7 +157,7 @@ export default function GameUI() {
         setCommentary("Connection error. Please try again.");
       }
     });
-  }, [round, playerScore, aiScore, fluidityScoreData, toast]);
+  }, [round, playerName, playerScore, aiScore, fluidityScoreData, toast, hasName]);
 
   const renderPlayerView = (
     isPlayer: boolean,
@@ -150,7 +165,7 @@ export default function GameUI() {
     choice: Move | null
   ) => {
     const Icon = isPlayer ? User : Bot;
-    const title = isPlayer ? 'You' : 'Sparring Partner';
+    const title = isPlayer ? (playerName || 'You') : 'Sparring Partner';
     const color = isPlayer ? 'primary' : 'accent';
     const videoContent = isPlayer ? (
       <video
@@ -175,9 +190,9 @@ export default function GameUI() {
 
     return (
       <div className="flex items-center gap-4 w-full">
-        <div className="flex flex-col items-center gap-1 w-16 text-center">
+        <div className="flex flex-col items-center gap-1 w-20 text-center">
           <Icon className={`w-8 h-8 text-${color}`} />
-          <span className="font-headline text-sm">{title}</span>
+          <span className="font-headline text-sm truncate">{title}</span>
           <span className={`font-bold text-lg text-${color}`}>{score}</span>
         </div>
         <div
@@ -190,16 +205,7 @@ export default function GameUI() {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col gap-4 p-4 relative min-h-screen justify-center">
-      <header className="text-center">
-        <h1 className="text-3xl font-bold font-headline tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary via-white to-accent">
-          Reactive RPS
-        </h1>
-        <p className="text-xs text-muted-foreground">
-          A Bio-Sync Digital Nervous System Demo
-        </p>
-      </header>
-
+    <div className="w-full max-w-md mx-auto flex flex-col gap-4 p-4 min-h-[calc(100vh-4rem)] justify-center">
       <div className="flex flex-col gap-4 items-center">
         {renderPlayerView(false, aiScore, aiChoice)}
         {renderPlayerView(true, playerScore, playerChoice)}
@@ -207,7 +213,7 @@ export default function GameUI() {
 
       <Card className="bg-card/80 backdrop-blur-sm">
         <CardContent className="p-3 text-xs font-code">
-          {fluidityScoreData ? (
+          {hasName && fluidityScoreData ? (
             <div className="flex justify-between items-center">
                <p>
                   <span className="text-muted-foreground">Fluidity: </span>
@@ -219,15 +225,28 @@ export default function GameUI() {
               </p>
             </div>
            ) : (
-               <p className="text-center text-muted-foreground">Awaiting round completion...</p>
+            <p className="text-center text-muted-foreground h-4 flex items-center justify-center">
+                {hasName ? 'Awaiting round completion...' : ' '}
+            </p>
            )}
            <Separator className="my-2 bg-border/50"/>
            <p className="text-foreground/90 h-10 text-center flex items-center justify-center">{commentary}</p>
         </CardContent>
       </Card>
-
-      <footer className="flex flex-col items-center gap-3">
-        <p className="font-headline text-md">Make Your Move</p>
+        
+      {!hasName ? (
+        <form onSubmit={handleNameSubmit} className="flex gap-2">
+            <Input 
+                value={playerName}
+                onChange={e => setPlayerName(e.target.value)}
+                placeholder="Enter your name..."
+                className="font-code"
+            />
+            <Button type="submit" size="icon" disabled={!playerName.trim()}>
+                <Send />
+            </Button>
+        </form>
+      ) : (
         <div className="flex items-center justify-center gap-3">
           {moves.map((move) => (
             <Button
@@ -246,7 +265,7 @@ export default function GameUI() {
             </Button>
           ))}
         </div>
-      </footer>
+      )}
       
       {resultMessage && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">

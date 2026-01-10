@@ -2,8 +2,8 @@ import GameUI from '@/components/game-ui';
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-center p-4">
+    <main className="flex min-h-screen w-full flex-col items-center justify-center p-4">
       <GameUI />
-    </div>
+    </main>
   );
 }
