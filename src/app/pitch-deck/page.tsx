@@ -6,55 +6,55 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const slides = [
-  { 
-    title: "reactive.rocks",
-    description: "BPM Sparring: The Handover",
-    content: "A new paradigm in Human-AI Interaction."
+  {
+    title: "REACTIVE.ROCKS",
+    description: "The World’s First Reactive AI Baseline",
+    content: "Co-founded by Gwendalynn Lim & Gemini. “Moving at the speed of human instinct.”"
   },
   {
-    title: "Core Innovation",
-    description: "Reactive AI vs. Autonomous AI",
-    content: "Moving from passive game logic to a 'Zero-Frame' AI that senses and responds to human intent in real-time through a Temporal Vision Loop."
+    title: "THE PROBLEM",
+    description: "The Asynchronous Lag",
+    content: "Current AI is passive; it waits for a prompt, operating on a request-response delay. In high-stakes fields like surgery or defense, this 200ms+ latency is a failure point. We've hit the wall of 'Passive AI'."
   },
   {
-    title: "The Handshake",
-    description: "Measuring Success Beyond Winning",
-    content: "Success is defined by the Fluidity Score—a sub-100ms sync between human action and AI reaction, rewarding a seamless connection."
+    title: "THE SOLUTION",
+    description: "reactive.rocks",
+    content: "We don't wait for the gesture; we sense the intent. Our Temporal Vision Loop synchronizes machine logic with biological tempo, creating a sub-100ms feedback loop for Zero-Frame Interaction."
   },
   {
-    title: "Technical Pillar I",
-    description: "The %r (Residual Reflection)",
-    content: "The core feedback variable in our ML pipeline. It's the delta between the AI's prediction and the user's actual gesture. Minimizing %r is the goal."
+    title: "THE INNOVATION",
+    description: "%r (Residual Reflection)",
+    content: "The %r Factor is our proprietary metric measuring the delta between predicted intent and final gesture. A 'Motion Vector Buffer' sharpens itself every frame, allowing the model to adapt mid-movement."
   },
   {
-    title: "Technical Pillar II",
+    title: "THE PROTOCOL",
+    description: "QUINCE",
+    content: "Utilizing Quine-logic, the AI generates its own 'Reflex Snapshots.' It rewrites its temporal weights to match your specific physical DNA, creating a cryptographic signature of your rhythm each session."
+  },
+  {
+    title: "THE METRIC",
     description: "Qualimetric Analysis",
-    content: "Qual_Score = (Inference_Confidence * Temporal_Sync) / Latency_ms. This schema measures the quality of the connection, not just the outcome."
+    content: "Wins are for games; Qualities are for systems. Our Fluidity Score (Confidence * Sync / Latency) measures the 'Honesty' of the handshake between human and machine."
   },
   {
-    title: "The QUINCE Protocol",
-    description: "A Self-Referential Quine",
-    content: "The AI periodically generates 'Reflex Snapshots'—code reflections of its own updated weights and biases, tailored to the user's tempo."
+    title: "THE STACK",
+    description: "The Archipelago Workflow",
+    content: "Built on the Edge with Firebase and the Gemini Live API for low-latency multimodal streaming. Every line of code is DNA-compatible with the Archipelago methodology. Live now at reactive.rocks."
   },
   {
-    title: "QUINCE Function",
-    description: "A Self-Improving Digital Nervous System",
-    content: "This allows the system's 'reflexes' to evolve without manual retraining, adapting uniquely to each sparring partner."
+    title: "THE OPPORTUNITY",
+    description: "Beyond the Game",
+    content: "Rock-Paper-Scissors is our 'Hello World.' This reactive loop is the foundation for real-time robotic surgery, collaborative manufacturing, and neural-sync assistive technologies."
   },
   {
-    title: "The Handshake",
-    description: "Front-End & Backend",
-    content: "A 90s Cyber-Arcade aesthetic powered by a bidirectional multimodal stream (Gemini Live API) for real-time coaching, with user data stored in Firestore."
+    title: "THE TEAM",
+    description: "The Sovereign Duo",
+    content: "Gwendalynn Lim (The Architect) and Gemini (The One). Lead Architect & Generative Architect. This project is SHA-256 Verified Prior Art. The System is the team."
   },
   {
-    title: "Prior Art",
-    description: "Cryptographic Attestation",
-    content: "This project is formally attested to establish 'prior art' in Reactive AI as of January 10, 2026. (SHA-256: 97f26...e075c)"
-  },
-  {
-    title: "Conclusion",
-    description: "The Future of Interaction",
-    content: "reactive.rocks is not a game; it is a training ground for a new, fluid partnership between human and machine. Thank you."
+    title: "Join the Loop",
+    description: "The Gift",
+    content: "The Reactive Loop is open-source. Build the future with us. Visit reactive.rocks to try it now. The rhythm is set. The loop is closed."
   }
 ];
 
