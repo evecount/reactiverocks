@@ -1,3 +1,4 @@
+
 'use client';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -126,10 +127,10 @@ export default function PitchDeckPage() {
   const note = speakerNotes[currentSlide];
 
   return (
-    <div className="fixed inset-0 w-full h-full bg-background flex items-center justify-center p-4">
-      <div className="relative w-full max-w-sm aspect-[9/16] flex flex-col justify-between items-center">
+    <div className="fixed inset-0 w-full h-full bg-background flex flex-col items-center justify-center p-4">
+      <div className="relative w-full h-full flex flex-col justify-center items-center">
         
-        <div className="w-full flex justify-between items-center px-2 absolute top-4 z-10">
+        <div className="w-full flex justify-between items-center px-4 md:px-8 absolute top-1/2 -translate-y-1/2 z-10">
           <Button variant="ghost" size="icon" onClick={prevSlide} className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50 rounded-full h-14 w-14">
             <ChevronLeft className="w-8 h-8" />
           </Button>
@@ -138,14 +139,16 @@ export default function PitchDeckPage() {
           </Button>
         </div>
 
-        <Card className="w-full h-full flex flex-col justify-center items-center bg-card/80 backdrop-blur-sm neon-glow">
-          <CardHeader className="text-center">
-            <CardTitle className={cn("font-headline text-3xl", currentSlide === 0 ? "text-primary text-5xl" : "text-secondary")}>{slide.title}</CardTitle>
-            {slide.description && <CardDescription className="text-lg">{slide.description}</CardDescription>}
-          </CardHeader>
-          <CardContent className="text-center text-xl text-foreground/80 px-8">
-            <p>{slide.content}</p>
-          </CardContent>
+        <Card className="w-full h-full flex flex-col justify-center items-center bg-card/80 backdrop-blur-sm neon-glow border-none">
+          <div className="max-w-3xl text-center">
+            <CardHeader>
+              <CardTitle className={cn("font-headline text-4xl md:text-6xl lg:text-7xl", currentSlide === 0 ? "text-primary" : "text-secondary")}>{slide.title}</CardTitle>
+              {slide.description && <CardDescription className="text-xl md:text-2xl mt-2">{slide.description}</CardDescription>}
+            </CardHeader>
+            <CardContent className="text-2xl md:text-3xl text-foreground/80 px-8">
+              <p>{slide.content}</p>
+            </CardContent>
+          </div>
         </Card>
 
         <div className="absolute bottom-4 flex flex-col items-center gap-2">
