@@ -298,47 +298,45 @@ export default function GameUI() {
         {/* Footer: Controls and Commentary */}
         <div className="relative w-full max-w-4xl mx-auto flex flex-col items-center gap-4">
           <Card className="bg-card backdrop-blur-sm w-full neon-glow">
-              <CardContent className="p-3 text-sm font-code">
-                  {hasName && fluidityScore !== null ? (
-                  <div className="flex justify-between items-center">
-                      <p>
-                          <span className="text-muted-foreground">Fluidity: </span>
-                          <span className="text-secondary font-bold digital-font">{fluidityScore.toFixed(0)}ms</span>
-                      </p>
-                      <p className="text-right">
-                          <span className="text-muted-foreground">Sync: </span>
-                          <span>{fluidityCommentary}</span>
-                      </p>
-                  </div>
-                  ) : (
-                  <div className="text-center text-muted-foreground h-5 flex items-center justify-center">
-                      {hasName ? 'Awaiting round completion...' : ' '}
-                  </div>
-                  )}
-                  <Separator className="my-2 bg-border/50"/>
-                  <div className="text-foreground/90 h-10 text-center flex items-center justify-center text-base">
-                    {isPending && commentary === 'Analyzing...' ? <Loader className="w-5 h-5 animate-spin" /> : commentary}
-                  </div>
-              </CardContent>
+            <CardContent className="p-0 text-sm font-code">
+              {hasName && fluidityScore !== null ? (
+                <div className="flex justify-between items-center p-3">
+                    <p>
+                        <span className="text-muted-foreground">Fluidity: </span>
+                        <span className="text-secondary font-bold digital-font">{fluidityScore.toFixed(0)}ms</span>
+                    </p>
+                    <p className="text-right">
+                        <span className="text-muted-foreground">Sync: </span>
+                        <span>{fluidityCommentary}</span>
+                    </p>
+                </div>
+              ) : (
+                <div className="text-center text-muted-foreground h-5 flex items-center justify-center p-3">
+                  {hasName ? 'Awaiting round completion...' : ''}
+                </div>
+              )}
+              <Separator className="my-0 bg-border/50"/>
+              <div className="text-foreground/90 h-10 text-center flex items-center justify-center text-base p-3">
+                {isPending && commentary === 'Analyzing...' ? <Loader className="w-5 h-5 animate-spin" /> : commentary}
+              </div>
+            </CardContent>
           </Card>
-
-          <div className="w-full flex justify-between items-center gap-2">
-            <div className='flex-1 flex justify-start'>
-              <Link href="/" passHref>
-                  <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
-                      <HomeIcon/>
-                  </Button>
-              </Link>
-            </div>
+          
+          <div className="w-full flex justify-between items-center gap-4">
+            <Link href="/" passHref>
+                <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
+                    <HomeIcon/>
+                </Button>
+            </Link>
             
-            <div className='flex-1 flex justify-center'>
+            <div className='flex-1'>
               {!hasName ? (
-                  <form onSubmit={handleNameSubmit} className="flex gap-2 w-full max-w-sm">
+                  <form onSubmit={handleNameSubmit} className="flex gap-2 w-full">
                       <Input 
                           value={playerName}
                           onChange={e => setPlayerName(e.target.value)}
-                          placeholder="Enter your name..."
-                          className="font-code bg-black/50 neon-glow border-none text-lg"
+                          placeholder="Enter your name to begin..."
+                          className="font-code bg-black/50 neon-glow border-none text-lg text-center flex-1"
                           disabled={isPending || !hasCameraPermission}
                       />
                       <Button type="submit" size="icon" className="neon-glow border-none w-12 h-12 bg-accent/80 hover:bg-accent" disabled={!playerName.trim() || isPending || !hasCameraPermission}>
@@ -368,7 +366,7 @@ export default function GameUI() {
               )}
             </div>
             
-            <div className='flex-1 flex justify-end items-center gap-4'>
+            <div className='flex justify-end items-center gap-4'>
                {hasName && (
                 <Button 
                     variant="destructive" 
@@ -379,7 +377,7 @@ export default function GameUI() {
                     <Square className="w-4 h-4 mr-2" />
                     End
                 </Button>
-            )}
+              )}
               <Link href="/leaderboard" passHref>
                   <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
                       <Trophy/>
@@ -387,7 +385,7 @@ export default function GameUI() {
               </Link>
             </div>
           </div>
-      </div>
+        </div>
       </div>
 
       {resultMessage && (
@@ -404,4 +402,5 @@ export default function GameUI() {
       )}
     </div>
   );
-}
+
+    
