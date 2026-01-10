@@ -356,7 +356,7 @@ export default function GameUI() {
                 </div>
               )}
               <Separator className="my-0 bg-border/50"/>
-              <div className="text-foreground/90 h-10 text-center flex items-center justify-center text-base p-3">
+              <div className="text-foreground/90 h-12 text-center flex items-center justify-center text-base p-3">
                 {isPending && commentary === 'Analyzing...' ? <Loader className="w-5 h-5 animate-spin" /> : commentary}
               </div>
             </CardContent>
