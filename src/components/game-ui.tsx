@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
@@ -226,8 +227,10 @@ export default function GameUI() {
         autoPlay
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-10 crt-flicker"
+        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-[0.07] crt-flicker"
       ></video>
+      <div className="absolute inset-0 w-full h-full pointer-events-none" style={{background: 'radial-gradient(ellipse at center, transparent 30%, black 100%)'}}></div>
+
 
       {!hasCameraPermission && (
          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
@@ -314,67 +317,70 @@ export default function GameUI() {
                 </CardContent>
             </Card>
 
-            <div className="h-44 w-full flex flex-col items-center justify-center gap-4">
-              {!hasName ? (
-                  <form onSubmit={handleNameSubmit} className="flex gap-2 w-full max-w-sm">
-                      <Input 
-                          value={playerName}
-                          onChange={e => setPlayerName(e.target.value)}
-                          placeholder="Enter your name..."
-                          className="font-code bg-black/50 neon-glow border-none text-lg"
-                          disabled={isPending || !hasCameraPermission}
-                      />
-                      <Button type="submit" size="icon" className="neon-glow border-none w-12 h-12 bg-accent/80 hover:bg-accent" disabled={!playerName.trim() || isPending || !hasCameraPermission}>
-                          {isPending ? <Loader className="animate-spin" /> : <Send />}
-                      </Button>
-                  </form>
-              ) : gameState === 'playing' ? (
-                  <div className="flex justify-center gap-4">
-                  {moves.map((move) => (
-                      <Button
-                      key={move}
-                      onClick={() => handlePlay(move)}
-                      disabled={isPending || !!resultMessage}
-                      variant="outline"
-                      className={cn(
-                          "w-28 h-28 flex flex-col gap-1 text-primary bg-primary/10 hover:bg-primary/20 neon-glow",
-                          playerChoice === move && "bg-primary/30"
-                      )}
-                      >
-                      {React.createElement(moveIcons[move], { className: "w-12 h-12" })}
-                      <span className="font-headline text-base capitalize">{move}</span>
-                      </Button>
-                  ))}
-                  </div>
-              ) : (
-                  <div className="h-28" />
-              )}
-            </div>
-            
-            <div className="w-full flex justify-between items-center gap-2 pb-8 max-w-md mx-auto absolute -bottom-8">
-              <Link href="/" passHref>
-                  <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
-                      <HomeIcon/>
-                  </Button>
-              </Link>
+            <div className="w-full flex justify-between items-center gap-2 pb-8 max-w-2xl mx-auto absolute -bottom-8">
+              <div className='flex-1 flex justify-start'>
+                <Link href="/" passHref>
+                    <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
+                        <HomeIcon/>
+                    </Button>
+                </Link>
+              </div>
               
-              {hasName && (
+              <div className='flex-1 flex justify-center'>
+                {!hasName ? (
+                    <form onSubmit={handleNameSubmit} className="flex gap-2 w-full max-w-sm">
+                        <Input 
+                            value={playerName}
+                            onChange={e => setPlayerName(e.target.value)}
+                            placeholder="Enter your name..."
+                            className="font-code bg-black/50 neon-glow border-none text-lg"
+                            disabled={isPending || !hasCameraPermission}
+                        />
+                        <Button type="submit" size="icon" className="neon-glow border-none w-12 h-12 bg-accent/80 hover:bg-accent" disabled={!playerName.trim() || isPending || !hasCameraPermission}>
+                            {isPending ? <Loader className="animate-spin" /> : <Send />}
+                        </Button>
+                    </form>
+                ) : gameState === 'playing' ? (
+                    <div className="flex justify-center gap-4">
+                    {moves.map((move) => (
+                        <Button
+                        key={move}
+                        onClick={() => handlePlay(move)}
+                        disabled={isPending || !!resultMessage}
+                        variant="outline"
+                        className={cn(
+                            "w-28 h-28 flex flex-col gap-1 text-primary bg-primary/10 hover:bg-primary/20 neon-glow",
+                            playerChoice === move && "bg-primary/30"
+                        )}
+                        >
+                        {React.createElement(moveIcons[move], { className: "w-12 h-12" })}
+                        <span className="font-headline text-base capitalize">{move}</span>
+                        </Button>
+                    ))}
+                    </div>
+                ) : (
+                    <div className="h-28" />
+                )}
+              </div>
+              
+              <div className='flex-1 flex justify-end items-center'>
+                 {hasName && (
                   <Button 
                       variant="destructive" 
                       onClick={handleEndSession}
                       disabled={gameState === 'ending'}
-                      className="neon-glow bg-destructive/80 hover:bg-destructive"
+                      className="neon-glow bg-destructive/80 hover:bg-destructive mr-4"
                   >
                       <Square className="w-4 h-4 mr-2" />
                       End Session
                   </Button>
               )}
-              
-              <Link href="/leaderboard" passHref>
-                  <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
-                      <Trophy/>
-                  </Button>
-              </Link>
+                <Link href="/leaderboard" passHref>
+                    <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
+                        <Trophy/>
+                    </Button>
+                </Link>
+              </div>
             </div>
         </div>
       </div>
