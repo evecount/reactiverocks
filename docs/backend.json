@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the Reactive Rock Paper Scissors game.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "username": {
+          "type": "string",
+          "description": "The user's chosen username.",
+          "format": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "createdAt"
+      ]
+    },
+    "LeaderboardEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LeaderboardEntry",
+      "type": "object",
+      "description": "Represents an entry in the leaderboard, associating a user with their score.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the leaderboard entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User. (Relationship: User 1:N LeaderboardEntry)"
+        },
+        "score": {
+          "type": "number",
+          "description": "The user's score on the leaderboard."
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Timestamp indicating when the score was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "score",
+        "lastUpdated"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information.  Path-based ownership ensures only the user can access their data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, corresponding to their Firebase Auth UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/leaderboard/{leaderboardEntryId}",
+        "definition": {
+          "entityName": "LeaderboardEntry",
+          "schema": {
+            "$ref": "#/backend/entities/LeaderboardEntry"
+          },
+          "description": "Stores leaderboard entries. Includes 'userId' for easy association with user data and independent authorization.",
+          "params": [
+            {
+              "name": "leaderboardEntryId",
+              "description": "The unique identifier for the leaderboard entry."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure prioritizes authorization independence and supports secure list operations (QAPs). User data is stored under `/users/{userId}` for private access. Leaderboard entries are stored in a top-level `/leaderboard` collection. Each entry contains the `userId`, enabling direct association with user data without requiring complex `get()` calls in security rules. This design denormalizes the relationship between users and leaderboard entries, promoting authorization independence as leaderboard access does not rely on reading user data. The structure facilitates QAPs because listing leaderboard entries does not expose any private user data directly."
+  }
+}

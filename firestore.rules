@@ -1,0 +1,153 @@
+/**
+ * This ruleset enforces a security model that segregates private user data
+ * from public game data for a leaderboard application. It allows for rapid
+ * prototyping by not strictly enforcing data shapes, but is highly secure
+ * from an authorization perspective.
+ *
+ * Core Philosophy:
+ * The security model is built on two distinct patterns:
+ * 1. Strict Ownership for user profiles.
+ * 2. Public Read with Owner-Only Writes for the leaderboard.
+ * This ensures that a user's personal information is completely private,
+ * while their game score can be part of a publicly accessible leaderboard
+ * without exposing their private data.
+ *
+ * Data Structure:
+ * - /users/{userId}: Contains private user profile documents. Access is
+ *   strictly limited to the authenticated user whose UID matches the {userId}.
+ * - /leaderboard/{leaderboardEntryId}: A top-level collection for public
+ *   leaderboard scores. Each document is publicly readable.
+ *
+ * Key Security Decisions:
+ * - Disallowed User Listing: To protect user privacy and prevent data scraping,
+ *   listing the entire /users collection is explicitly forbidden.
+ * - Public Leaderboard: The /leaderboard collection is publicly readable
+ *   to allow anyone (including unauthenticated users) to view scores.
+ * - Ownership for Writes: All write operations (create, update, delete)
+ *   are protected. Users can only create and manage their own profile and
+ *   their own leaderboard entry.
+ *
+ * Denormalization for Authorization:
+ * To ensure fast and secure rules, the /leaderboard/{id} documents contain a
+ * denormalized `userId` field. This allows the rules to verify ownership
+ * for write operations directly on the leaderboard entry itself, avoiding slow
+ * and costly `get()` calls to other collections.
+ *
+ * Structural Segregation:
+ * The use of two separate top-level collections (/users and /leaderboard)
+ * is a deliberate choice. This structure provides a clear and secure separation
+ * between private data and public data, which is more secure and performant
+ * than using a single collection with a boolean 'isPublic' flag.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ----------------------------------------------------------------------
+    // Helper Functions
+    // ----------------------------------------------------------------------
+
+    /**
+     * Checks if a user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user's UID matches the provided userId.
+     * This is the foundation of the user ownership model.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Validates a create request for a user profile. Ensures the creator is the
+     * owner and that the internal 'id' field matches the document's path {userId}.
+     * This maintains relational integrity.
+     */
+    function isValidUserCreate(userId) {
+      return isOwner(userId) && request.resource.data.id == userId;
+    }
+
+    /**
+     * Validates an update request for a user profile. Ensures the user is the
+     * owner, the document already exists, and the internal 'id' field is immutable.
+     */
+    function isValidUserUpdate(userId) {
+      return isOwner(userId) && resource != null && request.resource.data.id == resource.data.id;
+    }
+    
+    /**
+     * Validates a delete request. Ensures the user is the owner and the document
+     * they are trying to delete actually exists.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+    
+    /**
+     * Validates a create request for a leaderboard entry. Ensures the user is
+     * signed in and sets their own UID in the `userId` ownership field.
+     */
+    function isValidLeaderboardCreate() {
+      return isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+    
+    /**
+     * Checks if the authenticated user is the owner of an existing leaderboard entry.
+     * Used for update and delete operations.
+     */
+    function isExistingLeaderboardOwner() {
+      return isSignedIn() && resource != null && resource.data.userId == request.auth.uid;
+    }
+    
+    /**
+     * Ensures that the ownership of a leaderboard entry (`userId` field)
+     * cannot be changed after it has been created.
+     */
+    function isLeaderboardEntryImmutable() {
+      return request.resource.data.userId == resource.data.userId;
+    }
+
+    // ----------------------------------------------------------------------
+    // Collection Rules
+    // ----------------------------------------------------------------------
+
+    /**
+     * @description Controls access to private user profiles. A user can create,
+     * read, update, and delete their own profile, but cannot access anyone else's.
+     * Listing all users is explicitly disabled to protect privacy.
+     * @path /users/{userId}
+     * @allow (create) A new user (auth.uid: 'user_abc') creating their profile at '/users/user_abc' with `{ "id": "user_abc", ... }`.
+     * @deny (get) A user (auth.uid: 'user_xyz') trying to read the document at '/users/user_abc'.
+     * @principle Restricts access to a user's own data tree and enforces relational integrity.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isValidUserCreate(userId);
+      allow update: if isValidUserUpdate(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to the public leaderboard. All users, including
+     * those not signed in, can read individual scores and the entire leaderboard.
+     * Only an authenticated user can create, update, or delete their OWN score.
+     * @path /leaderboard/{leaderboardEntryId}
+     * @allow (list) An unauthenticated user querying the '/leaderboard' collection.
+     * @allow (create) User 'user_abc' creating a new entry with `{ "userId": "user_abc", ... }`.
+     * @deny (update) User 'user_xyz' trying to change a leaderboard document where `resource.data.userId` is 'user_abc'.
+     * @principle Enforces public read access while restricting writes to the document's owner via an internal ownership field.
+     */
+    match /leaderboard/{leaderboardEntryId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isValidLeaderboardCreate();
+      allow update: if isExistingLeaderboardOwner() && isLeaderboardEntryImmutable();
+      allow delete: if isExistingLeaderboardOwner();
+    }
+  }
+}
