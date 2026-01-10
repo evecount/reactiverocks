@@ -309,42 +309,44 @@ export default function GameUI() {
                 </CardContent>
             </Card>
 
-            {!hasName ? (
-                <form onSubmit={handleNameSubmit} className="flex gap-2 w-full max-w-sm">
-                    <Input 
-                        value={playerName}
-                        onChange={e => setPlayerName(e.target.value)}
-                        placeholder="Enter your name..."
-                        className="font-code bg-black/50 neon-glow border-none text-lg"
-                        disabled={isPending || !hasCameraPermission}
-                    />
-                    <Button type="submit" size="icon" className="neon-glow border-none w-12 h-12 bg-accent/80 hover:bg-accent" disabled={!playerName.trim() || isPending || !hasCameraPermission}>
-                        {isPending ? <Loader className="animate-spin" /> : <Send />}
-                    </Button>
-                </form>
-            ) : gameState === 'playing' ? (
-                <div className="flex justify-center gap-4">
-                {moves.map((move) => (
-                    <Button
-                    key={move}
-                    onClick={() => handlePlay(move)}
-                    disabled={isPending || !!resultMessage}
-                    variant="outline"
-                    className={cn(
-                        "w-28 h-28 flex flex-col gap-1 text-primary bg-primary/10 hover:bg-primary/20 neon-glow",
-                        playerChoice === move && "bg-primary/30"
-                    )}
-                    >
-                    {React.createElement(moveIcons[move], { className: "w-12 h-12" })}
-                    <span className="font-headline text-base capitalize">{move}</span>
-                    </Button>
-                ))}
-                </div>
-            ) : (
-                <div className="h-28" />
-            )}
+            <div className="h-44 w-full flex flex-col items-center justify-center gap-4">
+              {!hasName ? (
+                  <form onSubmit={handleNameSubmit} className="flex gap-2 w-full max-w-sm">
+                      <Input 
+                          value={playerName}
+                          onChange={e => setPlayerName(e.target.value)}
+                          placeholder="Enter your name..."
+                          className="font-code bg-black/50 neon-glow border-none text-lg"
+                          disabled={isPending || !hasCameraPermission}
+                      />
+                      <Button type="submit" size="icon" className="neon-glow border-none w-12 h-12 bg-accent/80 hover:bg-accent" disabled={!playerName.trim() || isPending || !hasCameraPermission}>
+                          {isPending ? <Loader className="animate-spin" /> : <Send />}
+                      </Button>
+                  </form>
+              ) : gameState === 'playing' ? (
+                  <div className="flex justify-center gap-4">
+                  {moves.map((move) => (
+                      <Button
+                      key={move}
+                      onClick={() => handlePlay(move)}
+                      disabled={isPending || !!resultMessage}
+                      variant="outline"
+                      className={cn(
+                          "w-28 h-28 flex flex-col gap-1 text-primary bg-primary/10 hover:bg-primary/20 neon-glow",
+                          playerChoice === move && "bg-primary/30"
+                      )}
+                      >
+                      {React.createElement(moveIcons[move], { className: "w-12 h-12" })}
+                      <span className="font-headline text-base capitalize">{move}</span>
+                      </Button>
+                  ))}
+                  </div>
+              ) : (
+                  <div className="h-28" />
+              )}
+            </div>
             
-            <div className="w-full max-w-sm flex justify-center items-center gap-2 mt-4 pb-8">
+            <div className="w-full max-w-sm flex justify-center items-center gap-2 pb-8">
               {hasName && (
                   <Button 
                       variant="destructive" 
