@@ -290,7 +290,7 @@ export default function GameUI() {
         </div>
 
         {/* Footer: Controls and Commentary */}
-        <div className="flex flex-col gap-4 items-center">
+        <div className="relative flex flex-col gap-4 items-center">
             <Card className="bg-card backdrop-blur-sm w-full max-w-2xl neon-glow">
                 <CardContent className="p-3 text-sm font-code">
                     {hasName && fluidityScore !== null ? (
@@ -351,30 +351,30 @@ export default function GameUI() {
               )}
             </div>
             
-            <div className="w-full max-w-sm flex justify-center items-center gap-2 pb-8">
+            <div className="w-full flex justify-between items-center gap-2 pb-8 max-w-md mx-auto absolute -bottom-8">
+              <Link href="/" passHref>
+                  <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
+                      <HomeIcon/>
+                  </Button>
+              </Link>
+              
               {hasName && (
                   <Button 
                       variant="destructive" 
                       onClick={handleEndSession}
                       disabled={gameState === 'ending'}
-                      className="flex-1 neon-glow bg-destructive/80 hover:bg-destructive"
+                      className="neon-glow bg-destructive/80 hover:bg-destructive"
                   >
                       <Square className="w-4 h-4 mr-2" />
                       End Session
                   </Button>
               )}
-               <div className='flex items-center gap-2 bg-black/50 backdrop-blur-sm p-1 rounded-lg neon-glow'>
-                    <Link href="/" passHref>
-                        <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20">
-                            <HomeIcon/>
-                        </Button>
-                    </Link>
-                    <Link href="/leaderboard" passHref>
-                        <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20">
-                            <Trophy/>
-                        </Button>
-                    </Link>
-                </div>
+              
+              <Link href="/leaderboard" passHref>
+                  <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
+                      <Trophy/>
+                  </Button>
+              </Link>
             </div>
         </div>
       </div>
