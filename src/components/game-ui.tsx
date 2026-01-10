@@ -19,11 +19,12 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 import { CircularProgress } from './ui/progress';
+import { useReactiveLoop } from '@/hooks/use-reactive-loop';
+import { detectGesture } from '@/lib/gesture-detector';
 
 type Move = 'rock' | 'paper' | 'scissors';
 type GameState = 'idle' | 'starting' | 'playing' | 'ending';
 
-const moves: Move[] = ['rock', 'paper', 'scissors'];
 const ROUND_TIME = 5;
 
 const moveIcons: Record<Move, React.ComponentType<{ className?: string }>> = {
@@ -49,6 +50,8 @@ export default function GameUI() {
   const [isMuted, setIsMuted] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState(true);
   const [countdown, setCountdown] = useState(ROUND_TIME);
+  const [lastDetectedMove, setLastDetectedMove] = useState<Move | null>(null);
+  const [isDetecting, setIsDetecting] = useState(false);
 
   const [gameState, setGameState] = useState<GameState>('idle');
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -56,6 +59,87 @@ export default function GameUI() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastMoveRef = useRef<Move | null>(null);
+
+  const handlePlay = useCallback(async (move: Move) => {
+    if (gameState !== 'playing' || isPending || resultMessage || move === 'none') return;
+    
+    resetTimer();
+    const startTime = Date.now();
+
+    startTransition(async () => {
+      setPlayerChoice(move);
+      setAiChoice(null);
+      setResult(null);
+      setFluidityScore(null);
+      setCommentary("Analyzing...")
+      
+
+      try {
+        const response: LiveRpsSessionOutput | undefined = await liveRpsSession({
+          userName: playerName,
+          event: "USER_MOVE",
+          playerMove: move,
+          fluidityScore: fluidityScore ?? undefined,
+        });
+
+        if (response) {
+          const endTime = Date.now();
+          const currentFluidity = endTime - startTime;
+          setFluidityScore(currentFluidity);
+          setAiChoice(response.aiMove || null);
+          setResult(response.gameResult || null);
+          setCommentary(response.commentaryText);
+          if (response.audio) playAudio(response.audio);
+
+          if (response.gameResult === 'win') {
+            setPlayerScore(s => s + 1);
+            setResultMessage("YOU WIN");
+            playText("You Win");
+          } else if (response.gameResult === 'lose') {
+            setAiScore(s => s + 1);
+            setResultMessage("YOU LOSE");
+            playText("You Lose");
+          } else {
+            setResultMessage("DRAW");
+            playText("Draw");
+          }
+
+          if (currentFluidity < 150) {
+            setFluidityCommentary("Excellent Sync!");
+          } else if (currentFluidity < 300) {
+            setFluidityCommentary("Good timing.");
+          } else {
+            setFluidityCommentary("Out of sync.");
+          }
+        }
+      } catch (error) {
+        console.error("Error during AI gameplay:", error);
+        toast({
+            variant: "destructive",
+            title: "AI Error",
+            description: "An error occurred while communicating with the AI.",
+        });
+        setCommentary("Connection error. Please try again.");
+      }
+    });
+  }, [gameState, isPending, playerName, fluidityScore, toast, playAudio, resetTimer, resultMessage, playText]);
+
+  const onGesture = useCallback((keypoints: any) => {
+    if (!keypoints || isPending || resultMessage) return;
+    
+    const gesture = detectGesture(keypoints);
+
+    if (gesture !== 'none' && gesture !== lastMoveRef.current) {
+        lastMoveRef.current = gesture;
+        handlePlay(gesture);
+    } else if (gesture === 'none') {
+        lastMoveRef.current = null;
+    }
+  }, [isPending, resultMessage, handlePlay]);
+
+  useReactiveLoop(videoRef, onGesture, setIsDetecting, hasCameraPermission && gameState === 'playing');
+
 
   useEffect(() => {
     const getCameraPermission = async () => {
@@ -139,7 +223,6 @@ export default function GameUI() {
         setResultMessage("TIMEOUT");
         playText("Timeout");
         setCommentary("Too slow. Reflexes need honing.");
-        playText("Too slow. Reflexes need honing.");
         setPlayerChoice(null);
         setAiChoice(null);
         setFluidityScore(null);
@@ -197,70 +280,6 @@ export default function GameUI() {
     }
   };
 
-  const handlePlay = useCallback(async (move: Move) => {
-    if (gameState !== 'playing' || isPending || resultMessage) return;
-    
-    resetTimer();
-    const startTime = Date.now();
-
-    startTransition(async () => {
-      setPlayerChoice(move);
-      setAiChoice(null);
-      setResult(null);
-      setFluidityScore(null);
-      setCommentary("Analyzing...")
-      
-
-      try {
-        const response: LiveRpsSessionOutput | undefined = await liveRpsSession({
-          userName: playerName,
-          event: "USER_MOVE",
-          playerMove: move,
-          fluidityScore: fluidityScore ?? undefined,
-        });
-
-        if (response) {
-          const endTime = Date.now();
-          const currentFluidity = endTime - startTime;
-          setFluidityScore(currentFluidity);
-          setAiChoice(response.aiMove || null);
-          setResult(response.gameResult || null);
-          setCommentary(response.commentaryText);
-          if (response.audio) playAudio(response.audio);
-
-          if (response.gameResult === 'win') {
-            setPlayerScore(s => s + 1);
-            setResultMessage("YOU WIN");
-            playText("You Win");
-          } else if (response.gameResult === 'lose') {
-            setAiScore(s => s + 1);
-            setResultMessage("YOU LOSE");
-            playText("You Lose");
-          } else {
-            setResultMessage("DRAW");
-            playText("Draw");
-          }
-
-          if (currentFluidity < 150) {
-            setFluidityCommentary("Excellent Sync!");
-          } else if (currentFluidity < 300) {
-            setFluidityCommentary("Good timing.");
-          } else {
-            setFluidityCommentary("Out of sync.");
-          }
-        }
-      } catch (error) {
-        console.error("Error during AI gameplay:", error);
-        toast({
-            variant: "destructive",
-            title: "AI Error",
-            description: "An error occurred while communicating with the AI.",
-        });
-        setCommentary("Connection error. Please try again.");
-      }
-    });
-  }, [gameState, isPending, playerName, fluidityScore, toast, playAudio, resetTimer, resultMessage, playText]);
-
   const toggleMute = () => {
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
@@ -283,7 +302,7 @@ export default function GameUI() {
 
 
       {!hasCameraPermission && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-20">
           <Alert variant="destructive" className="max-w-md neon-glow">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Camera Access Required</AlertTitle>
@@ -293,6 +312,14 @@ export default function GameUI() {
           </Alert>
         </div>
       )}
+      
+      { hasName && !isDetecting && gameState === 'playing' && (
+         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center flex-col gap-4 z-20">
+            <Loader className="w-16 h-16 animate-spin text-primary"/>
+            <p className="text-primary font-headline">Loading Vision Core...</p>
+         </div>
+      )}
+
 
       <div className="absolute inset-0 pt-14 flex flex-col justify-between p-4 md:p-8">
         {/* Header: Scores and Timer */}
@@ -395,26 +422,8 @@ export default function GameUI() {
                           {isPending ? <Loader className="animate-spin" /> : <Send />}
                       </Button>
                   </form>
-              ) : gameState === 'playing' ? (
-                  <div className="flex justify-center gap-4">
-                  {moves.map((move) => (
-                      <Button
-                      key={move}
-                      onClick={() => handlePlay(move)}
-                      disabled={isPending || !!resultMessage}
-                      variant="outline"
-                      className={cn(
-                          "w-28 h-28 flex flex-col gap-1 text-primary bg-primary/10 hover:bg-primary/20 neon-glow",
-                          playerChoice === move && "bg-primary/30"
-                      )}
-                      >
-                      {React.createElement(moveIcons[move], { className: "w-12 h-12" })}
-                      <span className="font-headline text-base capitalize">{move}</span>
-                      </Button>
-                  ))}
-                  </div>
               ) : (
-                  <div className="h-28" />
+                  <div className="h-12" />
               )}
             </div>
             
@@ -430,9 +439,9 @@ export default function GameUI() {
       </div>
 
       {resultMessage && (
-        <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none z-10">
+        <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none z-10 text-center">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in"></div>
-          <h2 className={cn("text-8xl font-bold text-center font-headline animate-in fade-in zoom-in-50", 
+          <h2 className={cn("text-8xl font-bold font-headline animate-in fade-in zoom-in-50", 
             result === 'win' && 'text-primary',
             result === 'lose' && 'text-destructive',
             resultMessage === 'TIMEOUT' && 'text-destructive',
@@ -445,5 +454,3 @@ export default function GameUI() {
     </div>
   );
 }
-
-    
