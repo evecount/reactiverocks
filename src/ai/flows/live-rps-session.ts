@@ -201,3 +201,7 @@ export const liveRpsSession = ai.defineFlow(
     };
   }
 );
+
+export async function runLiveRpsSession(input: LiveRpsSessionInput): Promise<LiveRpsSessionOutput> {
+  return liveRpsSession(input);
+}

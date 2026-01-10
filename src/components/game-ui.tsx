@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import Link from 'next/link';
 import { Bot, Loader, User, Send, Mic, MicOff, AlertCircle, Trophy, HomeIcon } from 'lucide-react';
-import { liveRpsSession } from '@/ai/flows/live-rps-session';
+import { runLiveRpsSession } from '@/ai/flows/live-rps-session';
 import { speak } from '@/ai/flows/speak';
 import type { LiveRpsSessionOutput } from '@/ai/flows/live-rps-session';
 
@@ -110,7 +110,7 @@ export default function GameUI() {
       
 
       try {
-        const response: LiveRpsSessionOutput | undefined = await liveRpsSession({
+        const response: LiveRpsSessionOutput | undefined = await runLiveRpsSession({
           userName: playerName,
           event: "USER_MOVE",
           playerMove: move,
@@ -255,7 +255,7 @@ export default function GameUI() {
       playText(playerName);
       startTransition(async () => {
         try {
-          const response = await liveRpsSession({
+          const response = await runLiveRpsSession({
             userName: playerName,
             event: "GAME_START"
           });
@@ -453,7 +453,3 @@ export default function GameUI() {
     </div>
   );
 }
-
-    
-
-    
