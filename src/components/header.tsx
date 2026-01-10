@@ -14,10 +14,10 @@ export default function Header() {
         <div className="flex flex-col items-center">
           <Link href="/" className="flex items-center space-x-2">
             <span className={cn(
-              "font-headline text-3xl sm:text-4xl font-bold animated-gradient-text",
+              "font-headline text-3xl sm:text-4xl font-bold animated-gradient-text flex items-center",
               "text-shadow-[0_0_10px_hsl(var(--primary))]"
             )}>
-              REACTIVE <Gem className="h-8 w-8 text-primary inline-block" /> ROCKS
+              REACTIVE <Gem className="h-8 w-8 text-primary inline-block mx-2" /> ROCKS
             </span>
           </Link>
         </div>
