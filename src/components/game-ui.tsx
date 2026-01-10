@@ -274,7 +274,7 @@ export default function GameUI() {
         </div>
 
         {/* AI and Player Move Display */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full flex justify-between items-center px-4 md:px-16">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full flex justify-between items-center px-4 md:px-16 pointer-events-none">
             <div className="w-32 h-32 flex items-center justify-center">
               {playerChoice && React.createElement(moveIcons[playerChoice], {
                 className: 'w-24 h-24 md:w-32 md:h-32 text-primary drop-shadow-[0_0_20px_hsl(var(--primary))] transition-all duration-300 animate-in fade-in zoom-in-50',
@@ -293,96 +293,96 @@ export default function GameUI() {
         </div>
 
         {/* Footer: Controls and Commentary */}
-        <div className="relative flex flex-col gap-4 items-center">
-            <Card className="bg-card backdrop-blur-sm w-full max-w-2xl neon-glow">
-                <CardContent className="p-3 text-sm font-code">
-                    {hasName && fluidityScore !== null ? (
-                    <div className="flex justify-between items-center">
-                        <p>
-                            <span className="text-muted-foreground">Fluidity: </span>
-                            <span className="text-secondary font-bold digital-font">{fluidityScore.toFixed(0)}ms</span>
-                        </p>
-                        <p className="text-right">
-                            <span className="text-muted-foreground">Sync: </span>
-                            <span>{fluidityCommentary}</span>
-                        </p>
-                    </div>
-                    ) : (
-                    <p className="text-center text-muted-foreground h-5 flex items-center justify-center">
-                        {hasName ? 'Awaiting round completion...' : ' '}
-                    </p>
-                    )}
-                    <Separator className="my-2 bg-border/50"/>
-                    <p className="text-foreground/90 h-10 text-center flex items-center justify-center text-base">{isPending && commentary === 'Analyzing...' ? <Loader className="w-5 h-5 animate-spin" /> : commentary}</p>
-                </CardContent>
-            </Card>
+        <div className="relative w-full max-w-2xl mx-auto flex flex-col items-center gap-4">
+          <Card className="bg-card backdrop-blur-sm w-full neon-glow">
+              <CardContent className="p-3 text-sm font-code">
+                  {hasName && fluidityScore !== null ? (
+                  <div className="flex justify-between items-center">
+                      <p>
+                          <span className="text-muted-foreground">Fluidity: </span>
+                          <span className="text-secondary font-bold digital-font">{fluidityScore.toFixed(0)}ms</span>
+                      </p>
+                      <p className="text-right">
+                          <span className="text-muted-foreground">Sync: </span>
+                          <span>{fluidityCommentary}</span>
+                      </p>
+                  </div>
+                  ) : (
+                  <p className="text-center text-muted-foreground h-5 flex items-center justify-center">
+                      {hasName ? 'Awaiting round completion...' : ' '}
+                  </p>
+                  )}
+                  <Separator className="my-2 bg-border/50"/>
+                  <p className="text-foreground/90 h-10 text-center flex items-center justify-center text-base">{isPending && commentary === 'Analyzing...' ? <Loader className="w-5 h-5 animate-spin" /> : commentary}</p>
+              </CardContent>
+          </Card>
 
-            <div className="w-full flex justify-between items-center gap-2 pb-8 max-w-2xl mx-auto absolute -bottom-8">
-              <div className='flex-1 flex justify-start'>
-                <Link href="/" passHref>
-                    <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
-                        <HomeIcon/>
-                    </Button>
-                </Link>
-              </div>
-              
-              <div className='flex-1 flex justify-center'>
-                {!hasName ? (
-                    <form onSubmit={handleNameSubmit} className="flex gap-2 w-full max-w-sm">
-                        <Input 
-                            value={playerName}
-                            onChange={e => setPlayerName(e.target.value)}
-                            placeholder="Enter your name..."
-                            className="font-code bg-black/50 neon-glow border-none text-lg"
-                            disabled={isPending || !hasCameraPermission}
-                        />
-                        <Button type="submit" size="icon" className="neon-glow border-none w-12 h-12 bg-accent/80 hover:bg-accent" disabled={!playerName.trim() || isPending || !hasCameraPermission}>
-                            {isPending ? <Loader className="animate-spin" /> : <Send />}
-                        </Button>
-                    </form>
-                ) : gameState === 'playing' ? (
-                    <div className="flex justify-center gap-4">
-                    {moves.map((move) => (
-                        <Button
-                        key={move}
-                        onClick={() => handlePlay(move)}
-                        disabled={isPending || !!resultMessage}
-                        variant="outline"
-                        className={cn(
-                            "w-28 h-28 flex flex-col gap-1 text-primary bg-primary/10 hover:bg-primary/20 neon-glow",
-                            playerChoice === move && "bg-primary/30"
-                        )}
-                        >
-                        {React.createElement(moveIcons[move], { className: "w-12 h-12" })}
-                        <span className="font-headline text-base capitalize">{move}</span>
-                        </Button>
-                    ))}
-                    </div>
-                ) : (
-                    <div className="h-28" />
-                )}
-              </div>
-              
-              <div className='flex-1 flex justify-end items-center'>
-                 {hasName && (
-                  <Button 
-                      variant="destructive" 
-                      onClick={handleEndSession}
-                      disabled={gameState === 'ending'}
-                      className="neon-glow bg-destructive/80 hover:bg-destructive mr-4"
-                  >
-                      <Square className="w-4 h-4 mr-2" />
-                      End Session
+          <div className="w-full flex justify-between items-center gap-2">
+            <div className='flex-1 flex justify-start'>
+              <Link href="/" passHref>
+                  <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
+                      <HomeIcon/>
                   </Button>
-              )}
-                <Link href="/leaderboard" passHref>
-                    <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
-                        <Trophy/>
-                    </Button>
-                </Link>
-              </div>
+              </Link>
             </div>
-        </div>
+            
+            <div className='flex-1 flex justify-center'>
+              {!hasName ? (
+                  <form onSubmit={handleNameSubmit} className="flex gap-2 w-full max-w-sm">
+                      <Input 
+                          value={playerName}
+                          onChange={e => setPlayerName(e.target.value)}
+                          placeholder="Enter your name..."
+                          className="font-code bg-black/50 neon-glow border-none text-lg"
+                          disabled={isPending || !hasCameraPermission}
+                      />
+                      <Button type="submit" size="icon" className="neon-glow border-none w-12 h-12 bg-accent/80 hover:bg-accent" disabled={!playerName.trim() || isPending || !hasCameraPermission}>
+                          {isPending ? <Loader className="animate-spin" /> : <Send />}
+                      </Button>
+                  </form>
+              ) : gameState === 'playing' ? (
+                  <div className="flex justify-center gap-4">
+                  {moves.map((move) => (
+                      <Button
+                      key={move}
+                      onClick={() => handlePlay(move)}
+                      disabled={isPending || !!resultMessage}
+                      variant="outline"
+                      className={cn(
+                          "w-28 h-28 flex flex-col gap-1 text-primary bg-primary/10 hover:bg-primary/20 neon-glow",
+                          playerChoice === move && "bg-primary/30"
+                      )}
+                      >
+                      {React.createElement(moveIcons[move], { className: "w-12 h-12" })}
+                      <span className="font-headline text-base capitalize">{move}</span>
+                      </Button>
+                  ))}
+                  </div>
+              ) : (
+                  <div className="h-28" />
+              )}
+            </div>
+            
+            <div className='flex-1 flex justify-end items-center'>
+               {hasName && (
+                <Button 
+                    variant="destructive" 
+                    onClick={handleEndSession}
+                    disabled={gameState === 'ending'}
+                    className="neon-glow bg-destructive/80 hover:bg-destructive mr-4"
+                >
+                    <Square className="w-4 h-4 mr-2" />
+                    End Session
+                </Button>
+            )}
+              <Link href="/leaderboard" passHref>
+                  <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
+                      <Trophy/>
+                  </Button>
+              </Link>
+            </div>
+          </div>
+      </div>
       </div>
 
       {resultMessage && (
@@ -400,3 +400,5 @@ export default function GameUI() {
     </div>
   );
 }
+
+    
