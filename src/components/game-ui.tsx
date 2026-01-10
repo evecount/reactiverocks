@@ -17,11 +17,13 @@ import { Separator } from './ui/separator';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
+import { CircularProgress } from './ui/progress';
 
 type Move = 'rock' | 'paper' | 'scissors';
 type GameState = 'idle' | 'starting' | 'playing' | 'ending';
 
 const moves: Move[] = ['rock', 'paper', 'scissors'];
+const ROUND_TIME = 5;
 
 const moveIcons: Record<Move, React.ComponentType<{ className?: string }>> = {
   rock: RockIcon,
@@ -45,12 +47,14 @@ export default function GameUI() {
   const [isPending, startTransition] = useTransition();
   const [isMuted, setIsMuted] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState(true);
+  const [countdown, setCountdown] = useState(ROUND_TIME);
 
   const [gameState, setGameState] = useState<GameState>('idle');
   const audioRef = useRef<HTMLAudioElement>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const getCameraPermission = async () => {
@@ -88,18 +92,70 @@ export default function GameUI() {
     }
   }, [isMuted]);
 
+  const resetTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setCountdown(ROUND_TIME);
+  }, []);
+
+  const startTimer = useCallback(() => {
+    resetTimer();
+    timerRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current!);
+          handleTimeout();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [resetTimer]);
+
+
+  useEffect(() => {
+    if (gameState === 'playing' && !resultMessage) {
+      startTimer();
+    } else {
+      resetTimer();
+    }
+    return () => resetTimer();
+  }, [gameState, resultMessage, startTimer, resetTimer]);
+
+
+  const handleTimeout = () => {
+    if (isPending) return;
+    startTransition(() => {
+        setAiScore(s => s + 1);
+        setResult('lose');
+        setResultMessage("TIMEOUT");
+        setCommentary("Too slow. Reflexes need honing.");
+        setPlayerChoice(null);
+        setAiChoice(null);
+        setFluidityScore(null);
+        setFluidityCommentary("No sync data.");
+    });
+  }
+
+
   useEffect(() => {
     if (resultMessage) {
+      resetTimer();
       const timer = setTimeout(() => {
         setResultMessage(null);
         // Also reset choices for next round visual clarity
         setPlayerChoice(null);
         setAiChoice(null);
         setResult(null);
+        if (gameState === 'playing') {
+          setRound(r => r + 1);
+        }
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [resultMessage]);
+  }, [resultMessage, gameState, resetTimer]);
 
   const handleNameSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -117,6 +173,7 @@ export default function GameUI() {
             if (response.audio) playAudio(response.audio);
           }
           setGameState('playing');
+          setRound(1);
         } catch (error) {
           console.error("Error starting session:", error);
           toast({
@@ -132,16 +189,18 @@ export default function GameUI() {
   };
 
   const handlePlay = useCallback(async (move: Move) => {
-    if (gameState !== 'playing' || isPending) return;
-
+    if (gameState !== 'playing' || isPending || resultMessage) return;
+    
+    resetTimer();
     const startTime = Date.now();
+
     startTransition(async () => {
       setPlayerChoice(move);
       setAiChoice(null); // Reset AI choice visuals
       setResult(null);
       setFluidityScore(null);
       setCommentary("Analyzing...")
-      setRound(r => r + 1);
+      
 
       try {
         const response: LiveRpsSessionOutput | undefined = await liveRpsSession({
@@ -188,7 +247,7 @@ export default function GameUI() {
         setCommentary("Connection error. Please try again.");
       }
     });
-  }, [gameState, isPending, playerName, fluidityScore, toast, playAudio]);
+  }, [gameState, isPending, playerName, fluidityScore, toast, playAudio, resetTimer, resultMessage]);
 
   const toggleMute = () => {
     const nextMuted = !isMuted;
@@ -234,9 +293,14 @@ export default function GameUI() {
             </div>
           </div>
           
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 text-center">
-            <div className="digital-font text-7xl font-bold text-white">
-                {round}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 text-center flex flex-col items-center">
+             <div className="relative w-28 h-28 flex items-center justify-center">
+              {gameState === 'playing' && (
+                <CircularProgress value={countdown} max={ROUND_TIME} className="absolute inset-0"/>
+              )}
+              <div className="digital-font text-7xl font-bold text-white">
+                  {round > 0 ? round : ''}
+              </div>
             </div>
             <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white mt-2 bg-black/30 hover:bg-black/50 rounded-full">
                 {isMuted ? <MicOff /> : <Mic />}
@@ -359,6 +423,7 @@ export default function GameUI() {
           <h2 className={cn("text-8xl font-bold font-headline animate-in fade-in zoom-in-50", 
             result === 'win' && 'text-primary',
             result === 'lose' && 'text-destructive',
+            resultMessage === 'TIMEOUT' && 'text-destructive',
             result === 'draw' && 'text-muted-foreground'
           )}>
             {resultMessage}
