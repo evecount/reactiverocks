@@ -1,4 +1,4 @@
-# 🗿 reactive.rocks
+git # 🗿 reactive.rocks
 
 > **Where the Lithosphere meets the LLM.** `reactive.rocks` is a gesture-controlled, real-time AI interface that transforms your webcam into a bridge between the physical and the digital. Built for the 2026 Antigravity Hackathon, it combines **TensorFlow.js** hand-tracking with the **Gemini Live API** to create a "Reactive Loop" where your movements shape the AI's personality.
 
