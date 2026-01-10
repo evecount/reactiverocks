@@ -4,65 +4,60 @@
 
 @layer base {
   :root {
-    --background: 240 64% 27%; /* #191970 */
+    /* 90s Cyber-Arcade Palette */
+    --background: 240 64% 8%; /* Deep Navy/Black */
     --foreground: 0 0% 98%;
 
-    --card: 240 55% 32%;
+    --card: 240 55% 15% / 0.6; /* Translucent for Glassmorphism */
     --card-foreground: 0 0% 98%;
 
-    --popover: 240 64% 27%;
+    --popover: 240 64% 8%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 183 100% 74%; /* #7DF9FF */
-    --primary-foreground: 240 64% 10%;
+    /* Primary Neon Colors */
+    --primary: 180 100% 50%; /* Cyber Blue #00FFFF */
+    --primary-foreground: 180 100% 10%;
 
-    --secondary: 240 50% 40%;
+    --secondary: 337 100% 70%; /* Hot Pink #FF69B4 */
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 240 50% 40%;
+    --muted: 240 50% 25%;
     --muted-foreground: 0 0% 63.9%;
 
-    --accent: 110 100% 54%; /* #39FF14 */
-    --accent-foreground: 0 0% 3.9%;
-
+    --accent: 271 83% 53%; /* Electric Purple #A020F0 */
+    --accent-foreground: 0 0% 98%;
+    
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-
-    --border: 240 50% 40%;
-    --input: 240 50% 40%;
-    --ring: 183 100% 74%;
+    
+    /* Border & Ring */
+    --border: 180 100% 50% / 0.3;
+    --input: 240 50% 25%;
+    --ring: 180 100% 50%;
 
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 240 64% 27%;
+    --background: 240 64% 8%;
     --foreground: 0 0% 98%;
-
-    --card: 240 55% 32%;
+    --card: 240 55% 15% / 0.6;
     --card-foreground: 0 0% 98%;
-
-    --popover: 240 64% 27%;
+    --popover: 240 64% 8%;
     --popover-foreground: 0 0% 98%;
-
-    --primary: 183 100% 74%;
-    --primary-foreground: 240 64% 10%;
-
-    --secondary: 240 50% 40%;
+    --primary: 180 100% 50%;
+    --primary-foreground: 180 100% 10%;
+    --secondary: 337 100% 70%;
     --secondary-foreground: 0 0% 98%;
-
-    --muted: 240 50% 40%;
+    --muted: 240 50% 25%;
     --muted-foreground: 0 0% 63.9%;
-
-    --accent: 110 100% 54%;
-    --accent-foreground: 0 0% 3.9%;
-
+    --accent: 271 83% 53%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-
-    --border: 240 50% 40%;
-    --input: 240 50% 40%;
-    --ring: 183 100% 74%;
+    --border: 180 100% 50% / 0.3;
+    --input: 240 50% 25%;
+    --ring: 180 100% 50%;
   }
 }
 
@@ -72,5 +67,77 @@
   }
   body {
     @apply bg-background text-foreground;
+    position: relative;
+  }
+  /* Scanline effect */
+  body::after {
+    content: " ";
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.3),
+      rgba(0, 0, 0, 0.3) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    pointer-events: none;
+    z-index: 10000;
+  }
+}
+
+@layer utilities {
+  .crt-flicker {
+    animation: flicker 0.15s infinite;
+  }
+
+  .neon-glow {
+    border-width: 2px;
+    border-color: hsl(var(--primary) / 0.5);
+    box-shadow: 0 0 5px hsl(var(--primary)),
+                0 0 10px hsl(var(--primary)),
+                0 0 20px hsl(var(--secondary)),
+                inset 0 0 5px hsl(var(--primary)),
+                inset 0 0 10px hsl(var(--secondary));
+    animation: pulse-glow 2s infinite ease-in-out;
+  }
+  
+  .digital-font {
+    font-family: 'Source Code Pro', monospace;
+    font-weight: 600;
+  }
+}
+
+@keyframes flicker {
+  0% { opacity: 0.95; }
+  50% { opacity: 1; }
+  100% { opacity: 0.95; }
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 5px hsl(var(--primary)),
+                0 0 10px hsl(var(--primary)),
+                0 0 20px hsl(var(--secondary)),
+                inset 0 0 5px hsl(var(--primary)),
+                inset 0 0 10px hsl(var(--secondary));
+  }
+  50% {
+     box-shadow: 0 0 10px hsl(var(--secondary)),
+                0 0 20px hsl(var(--secondary)),
+                0 0 40px hsl(var(--primary)),
+                inset 0 0 10px hsl(var(--secondary)),
+                inset 0 0 20px hsl(var(--primary));
+  }
+  100% {
+    box-shadow: 0 0 5px hsl(var(--primary)),
+                0 0 10px hsl(var(--primary)),
+                0 0 20px hsl(var(--secondary)),
+                inset 0 0 5px hsl(var(--primary)),
+                inset 0 0 10px hsl(var(--secondary));
   }
 }

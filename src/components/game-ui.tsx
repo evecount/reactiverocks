@@ -218,19 +218,19 @@ export default function GameUI() {
   }
 
   return (
-    <div className="fixed inset-0 w-full h-full bg-black">
+    <div className="fixed inset-0 w-full h-full bg-black pt-14">
       <audio ref={audioRef} className="hidden" />
       <video
         ref={videoRef}
         autoPlay
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-50"
+        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-30 crt-flicker"
       ></video>
 
       {!hasCameraPermission && (
          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-            <Alert variant="destructive" className="max-w-md">
+            <Alert variant="destructive" className="max-w-md neon-glow">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Camera Access Required</AlertTitle>
               <AlertDescription>
@@ -240,28 +240,28 @@ export default function GameUI() {
         </div>
       )}
 
-      <div className="absolute inset-0 flex flex-col justify-between p-4 md:p-8">
+      <div className="absolute inset-0 pt-14 flex flex-col justify-between p-4 md:p-8">
         {/* Header: Scores and Timer */}
         <div className="flex justify-between items-start gap-4">
-          <div className="flex items-center gap-4 bg-background/50 backdrop-blur-sm p-2 rounded-lg">
+          <div className="flex items-center gap-4 bg-black/50 backdrop-blur-sm p-3 rounded-lg neon-glow">
             <User className="w-8 h-8 text-primary" />
             <div className="flex-1 w-24">
               <p className="font-headline text-primary truncate">{playerName || 'Player'}</p>
-              <p className="font-bold text-2xl text-white">{playerScore}</p>
+              <p className="font-bold text-4xl digital-font text-white">{playerScore}</p>
             </div>
           </div>
           <div className="text-center">
-            <div className="font-headline text-5xl font-bold text-white">
+            <div className="digital-font text-7xl font-bold text-white">
                 {round}
             </div>
-            <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white mt-2 bg-black/30 hover:bg-black/50">
+            <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white mt-2 bg-black/30 hover:bg-black/50 rounded-full">
                 {isMuted ? <MicOff /> : <Mic />}
             </Button>
           </div>
-          <div className="flex items-center gap-4 bg-background/50 backdrop-blur-sm p-2 rounded-lg">
+          <div className="flex items-center gap-4 bg-black/50 backdrop-blur-sm p-3 rounded-lg neon-glow">
              <div className="flex-1 text-right w-24">
               <p className="font-headline text-accent truncate">QUINCE</p>
-              <p className="font-bold text-2xl text-white">{aiScore}</p>
+              <p className="font-bold text-4xl digital-font text-white">{aiScore}</p>
             </div>
             <Bot className="w-8 h-8 text-accent" />
           </div>
@@ -271,27 +271,27 @@ export default function GameUI() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center w-full">
             <div className="absolute left-4 md:left-16">
               {playerChoice && React.createElement(moveIcons[playerChoice], {
-                className: 'w-24 h-24 md:w-32 md:h-32 text-primary drop-shadow-[0_0_15px_hsl(var(--primary))] transition-all duration-300 animate-in fade-in zoom-in-50',
+                className: 'w-24 h-24 md:w-32 md:h-32 text-primary drop-shadow-[0_0_20px_hsl(var(--primary))] transition-all duration-300 animate-in fade-in zoom-in-50',
               })}
             </div>
             {isPending && !aiChoice && gameState === 'playing' ? (
               <Loader className="w-24 h-24 animate-spin text-white" />
             ) : aiChoice ? (
               React.createElement(moveIcons[aiChoice], {
-                className: 'w-40 h-40 text-accent drop-shadow-[0_0_15px_hsl(var(--accent))] transition-all duration-300 animate-in fade-in zoom-in-50',
+                className: 'w-40 h-40 text-accent drop-shadow-[0_0_20px_hsl(var(--accent))] transition-all duration-300 animate-in fade-in zoom-in-50',
               })
             ) : null}
         </div>
 
         {/* Footer: Controls and Commentary */}
         <div className="flex flex-col gap-4 items-center">
-            <Card className="bg-card/80 backdrop-blur-sm w-full max-w-2xl">
+            <Card className="bg-card backdrop-blur-sm w-full max-w-2xl neon-glow">
                 <CardContent className="p-3 text-sm font-code">
                     {hasName && fluidityScore !== null ? (
                     <div className="flex justify-between items-center">
                         <p>
                             <span className="text-muted-foreground">Fluidity: </span>
-                            <span className="text-accent font-bold">{fluidityScore.toFixed(0)}ms</span>
+                            <span className="text-secondary font-bold digital-font">{fluidityScore.toFixed(0)}ms</span>
                         </p>
                         <p className="text-right">
                             <span className="text-muted-foreground">Sync: </span>
@@ -304,7 +304,7 @@ export default function GameUI() {
                     </p>
                     )}
                     <Separator className="my-2 bg-border/50"/>
-                    <p className="text-foreground/90 h-10 text-center flex items-center justify-center">{isPending && commentary === 'Analyzing...' ? <Loader className="w-4 h-4 animate-spin" /> : commentary}</p>
+                    <p className="text-foreground/90 h-10 text-center flex items-center justify-center text-base">{isPending && commentary === 'Analyzing...' ? <Loader className="w-5 h-5 animate-spin" /> : commentary}</p>
                 </CardContent>
             </Card>
 
@@ -314,10 +314,10 @@ export default function GameUI() {
                         value={playerName}
                         onChange={e => setPlayerName(e.target.value)}
                         placeholder="Enter your name..."
-                        className="font-code"
+                        className="font-code bg-black/50 neon-glow border-none text-lg"
                         disabled={isPending || !hasCameraPermission}
                     />
-                    <Button type="submit" size="icon" disabled={!playerName.trim() || isPending || !hasCameraPermission}>
+                    <Button type="submit" size="icon" className="neon-glow border-none w-12 h-12 bg-accent/80 hover:bg-accent" disabled={!playerName.trim() || isPending || !hasCameraPermission}>
                         {isPending ? <Loader className="animate-spin" /> : <Send />}
                     </Button>
                 </form>
@@ -330,17 +330,17 @@ export default function GameUI() {
                     disabled={isPending || !!resultMessage}
                     variant="outline"
                     className={cn(
-                        "w-24 h-24 flex flex-col gap-1 border-4 text-primary bg-primary/10 hover:bg-primary/20 hover:border-primary",
-                        playerChoice === move && "bg-primary/30 border-primary"
+                        "w-28 h-28 flex flex-col gap-1 text-primary bg-primary/10 hover:bg-primary/20 neon-glow",
+                        playerChoice === move && "bg-primary/30"
                     )}
                     >
-                    {React.createElement(moveIcons[move], { className: "w-10 h-10" })}
-                    <span className="font-headline text-sm capitalize">{move}</span>
+                    {React.createElement(moveIcons[move], { className: "w-12 h-12" })}
+                    <span className="font-headline text-base capitalize">{move}</span>
                     </Button>
                 ))}
                 </div>
             ) : (
-                <div className="h-24" />
+                <div className="h-28" />
             )}
             
             {hasName && (
@@ -348,7 +348,7 @@ export default function GameUI() {
                     variant="destructive" 
                     onClick={handleEndSession}
                     disabled={gameState === 'ending'}
-                    className="w-full max-w-sm mt-2"
+                    className="w-full max-w-sm mt-2 neon-glow bg-destructive/80 hover:bg-destructive"
                 >
                     <Square className="w-4 h-4 mr-2" />
                     End Session

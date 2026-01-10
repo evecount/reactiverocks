@@ -11,7 +11,7 @@ export default {
     extend: {
       fontFamily: {
         body: ["'Space Grotesk'", 'sans-serif'],
-        headline: ["'Space Grotesk'", 'sans-serif'],
+        headline: ["'Press Start 2P'", 'cursive'],
         code: ["'Source Code Pro'", 'monospace'],
       },
       colors: {
