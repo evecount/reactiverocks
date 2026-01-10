@@ -113,17 +113,15 @@ export default function GameUI() {
     timerRef.current = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
-          // Timeout Logic: Pause instead of infinite loop reset
+          // Stay at 0 to trigger useEffect, but don't do side effects here
           if (timerRef.current) clearInterval(timerRef.current);
           timerRef.current = null;
-          setIsPaused(true);
-          playText("Time out. I will wait.");
-          return roundDuration; // Reset to start value so we don't trigger "Lose" effect
+          return 0;
         }
         return prev - 1;
       });
     }, 1000);
-  }, [playText]);
+  }, []);
 
 
 
@@ -280,20 +278,14 @@ export default function GameUI() {
 
 
   useEffect(() => {
-    if (countdown === 0 && gameState === 'playing' && !isPending && !resultMessage) {
-      startTransition(() => {
-        setAiScore(s => s + 1);
-        setResult('lose');
-        setResultMessage("TIMEOUT");
-        playText("Timeout");
-        setCommentary("Too slow. Reflexes need honing.");
-        setPlayerChoice(null);
-        setAiChoice(null);
-        setFluidityScore(null);
-        setFluidityCommentary("No sync data.");
-      });
+    if (countdown === 0 && gameState === 'playing' && !isPending && !resultMessage && !isPaused) {
+      // "Wait" behavior as requested: Pause instead of Lose
+      setIsPaused(true);
+      playText("Time out. I will wait.");
+      setCountdown(roundDuration); // Reset for next start
+      setCommentary("Waiting... Hit Play when ready.");
     }
-  }, [countdown, gameState, isPending, resultMessage, playText]);
+  }, [countdown, gameState, isPending, resultMessage, isPaused, playText, roundDuration]);
 
 
   useEffect(() => {
@@ -448,7 +440,7 @@ export default function GameUI() {
       )}
 
 
-      <div className="absolute inset-0 pt-24 flex flex-col justify-between p-4 md:p-8">
+      <div className="absolute inset-0 pt-36 md:pt-40 flex flex-col justify-between p-4 md:p-8">
         {/* Header: Scores and Timer */}
         {/* Vision Status Indicator - Explicit for User - MOVED TO TOP */}
         <div className="absolute top-28 left-1/2 -translate-x-1/2 z-[70] pointer-events-none transition-all duration-300">
@@ -548,7 +540,7 @@ export default function GameUI() {
                     100% { transform: translateX(-100%); }
                   }
                   .animate-marquee {
-                    animation: marquee 10s linear infinite;
+                    animation: marquee 15s linear infinite;
                     white-space: nowrap;
                   }
                 `}</style>
