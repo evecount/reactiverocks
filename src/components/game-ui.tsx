@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import Link from 'next/link';
-import { Bot, Loader, User, Send, Square, Mic, MicOff, AlertCircle, Trophy, HomeIcon } from 'lucide-react';
+import { Bot, Loader, User, Send, Mic, MicOff, AlertCircle, Trophy, HomeIcon } from 'lucide-react';
 import { liveRpsSession } from '@/ai/flows/live-rps-session';
 import type { LiveRpsSessionOutput } from '@/ai/flows/live-rps-session';
 
@@ -100,6 +100,21 @@ export default function GameUI() {
     setCountdown(ROUND_TIME);
   }, []);
 
+  const handleTimeout = useCallback(() => {
+    if (isPending) return;
+    startTransition(() => {
+        setAiScore(s => s + 1);
+        setResult('lose');
+        setResultMessage("TIMEOUT");
+        setCommentary("Too slow. Reflexes need honing.");
+        setPlayerChoice(null);
+        setAiChoice(null);
+        setFluidityScore(null);
+        setFluidityCommentary("No sync data.");
+    });
+  }, [isPending]);
+
+
   const startTimer = useCallback(() => {
     resetTimer();
     timerRef.current = setInterval(() => {
@@ -112,7 +127,7 @@ export default function GameUI() {
         return prev - 1;
       });
     }, 1000);
-  }, [resetTimer]);
+  }, [resetTimer, handleTimeout]);
 
 
   useEffect(() => {
@@ -125,34 +140,18 @@ export default function GameUI() {
   }, [gameState, resultMessage, startTimer, resetTimer]);
 
 
-  const handleTimeout = () => {
-    if (isPending) return;
-    startTransition(() => {
-        setAiScore(s => s + 1);
-        setResult('lose');
-        setResultMessage("TIMEOUT");
-        setCommentary("Too slow. Reflexes need honing.");
-        setPlayerChoice(null);
-        setAiChoice(null);
-        setFluidityScore(null);
-        setFluidityCommentary("No sync data.");
-    });
-  }
-
-
   useEffect(() => {
     if (resultMessage) {
       resetTimer();
       const timer = setTimeout(() => {
         setResultMessage(null);
-        // Also reset choices for next round visual clarity
         setPlayerChoice(null);
         setAiChoice(null);
         setResult(null);
         if (gameState === 'playing') {
           setRound(r => r + 1);
         }
-      }, 2000);
+      }, 3000); // Increased linger time to 3 seconds
       return () => clearTimeout(timer);
     }
   }, [resultMessage, gameState, resetTimer]);
@@ -196,7 +195,7 @@ export default function GameUI() {
 
     startTransition(async () => {
       setPlayerChoice(move);
-      setAiChoice(null); // Reset AI choice visuals
+      setAiChoice(null);
       setResult(null);
       setFluidityScore(null);
       setCommentary("Analyzing...")
@@ -418,9 +417,9 @@ export default function GameUI() {
       </div>
 
       {resultMessage && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+        <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none z-10">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in"></div>
-          <h2 className={cn("text-8xl font-bold font-headline animate-in fade-in zoom-in-50", 
+          <h2 className={cn("text-8xl font-bold text-center font-headline animate-in fade-in zoom-in-50", 
             result === 'win' && 'text-primary',
             result === 'lose' && 'text-destructive',
             resultMessage === 'TIMEOUT' && 'text-destructive',
@@ -433,3 +432,5 @@ export default function GameUI() {
     </div>
   );
 }
+
+    
