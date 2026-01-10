@@ -128,33 +128,55 @@ export default function PitchDeckPage() {
 
   return (
     <div className="fixed inset-0 w-full h-full bg-background flex flex-col items-center justify-center p-4">
-      <div className="relative w-full h-full flex flex-col justify-center items-center">
-        
-        <div className="w-full flex justify-between items-center px-4 md:px-8 absolute top-1/2 -translate-y-1/2 z-10">
-          <Button variant="ghost" size="icon" onClick={prevSlide} className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50 rounded-full h-14 w-14">
-            <ChevronLeft className="w-8 h-8" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={nextSlide} className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50 rounded-full h-14 w-14">
-            <ChevronRight className="w-8 h-8" />
-          </Button>
+      <div className="w-full h-full grid md:grid-cols-3 gap-4">
+
+        {/* Main Slide Content (takes 2/3 on desktop) */}
+        <div className="relative w-full h-full md:col-span-2 flex flex-col justify-center items-center">
+          <div className="w-full flex justify-between items-center px-4 md:px-8 absolute top-1/2 -translate-y-1/2 z-10">
+            <Button variant="ghost" size="icon" onClick={prevSlide} className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50 rounded-full h-14 w-14">
+              <ChevronLeft className="w-8 h-8" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={nextSlide} className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50 rounded-full h-14 w-14">
+              <ChevronRight className="w-8 h-8" />
+            </Button>
+          </div>
+
+          <Card className="w-full h-full flex flex-col justify-center items-center bg-card/80 backdrop-blur-sm neon-glow border-none">
+            <div className="max-w-3xl text-center">
+              <CardHeader>
+                <CardTitle className={cn("font-headline text-4xl md:text-6xl lg:text-7xl", currentSlide === 0 ? "text-primary" : "text-secondary")}>{slide.title}</CardTitle>
+                {slide.description && <CardDescription className="text-xl md:text-2xl mt-2">{slide.description}</CardDescription>}
+              </CardHeader>
+              <CardContent className="text-2xl md:text-3xl text-foreground/80 px-8">
+                <p>{slide.content}</p>
+              </CardContent>
+            </div>
+          </Card>
         </div>
 
-        <Card className="w-full h-full flex flex-col justify-center items-center bg-card/80 backdrop-blur-sm neon-glow border-none">
-          <div className="max-w-3xl text-center">
-            <CardHeader>
-              <CardTitle className={cn("font-headline text-4xl md:text-6xl lg:text-7xl", currentSlide === 0 ? "text-primary" : "text-secondary")}>{slide.title}</CardTitle>
-              {slide.description && <CardDescription className="text-xl md:text-2xl mt-2">{slide.description}</CardDescription>}
-            </CardHeader>
-            <CardContent className="text-2xl md:text-3xl text-foreground/80 px-8">
-              <p>{slide.content}</p>
-            </CardContent>
-          </div>
-        </Card>
+        {/* Speaker Notes (takes 1/3 on desktop, hidden on mobile) */}
+        <div className="hidden md:flex flex-col">
+           <Card className="bg-card/80 backdrop-blur-sm neon-glow h-full">
+              <CardHeader>
+                <CardTitle className="text-secondary flex items-center gap-2"><Notebook /> Speaker Notes</CardTitle>
+              </CardHeader>
+              <CardContent className="h-full">
+                <ScrollArea className="h-[calc(100%-80px)] w-full">
+                  <div className="prose prose-invert text-foreground/80 p-4">
+                    <h3 className="text-secondary !mb-2">{note.title}</h3>
+                    <p>{note.speech}</p>
+                  </div>
+                </ScrollArea>
+              </CardContent>
+           </Card>
+        </div>
 
-        <div className="absolute bottom-4 flex flex-col items-center gap-2">
+        {/* Bottom Controls */}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+            {/* Speaker Notes Dialog for Mobile */}
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" className="neon-glow bg-black/50">
+                <Button variant="outline" className="neon-glow bg-black/50 md:hidden">
                   <Notebook className="mr-2 h-4 w-4" /> Speaker Notes
                 </Button>
               </DialogTrigger>
