@@ -226,7 +226,7 @@ export default function GameUI() {
         autoPlay
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-20 crt-flicker"
+        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-10 crt-flicker"
       ></video>
 
       {!hasCameraPermission && (
@@ -243,7 +243,7 @@ export default function GameUI() {
 
       <div className="absolute inset-0 pt-14 flex flex-col justify-between p-4 md:p-8">
         {/* Header: Scores and Timer */}
-        <div className="flex justify-between items-start gap-4">
+        <div className="relative flex justify-between items-start gap-4">
           <div className="flex items-center gap-4 bg-black/50 backdrop-blur-sm p-3 rounded-lg neon-glow">
             <User className="w-8 h-8 text-primary" />
             <div className="flex-1 w-24">
@@ -251,7 +251,8 @@ export default function GameUI() {
               <p className="font-bold text-4xl digital-font text-white">{playerScore}</p>
             </div>
           </div>
-          <div className="text-center">
+          
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 text-center">
             <div className="digital-font text-7xl font-bold text-white">
                 {round}
             </div>
@@ -259,6 +260,7 @@ export default function GameUI() {
                 {isMuted ? <MicOff /> : <Mic />}
             </Button>
           </div>
+
           <div className="flex items-center gap-4 bg-black/50 backdrop-blur-sm p-3 rounded-lg neon-glow">
              <div className="flex-1 text-right w-24">
               <p className="font-headline text-accent truncate">QUINCE</p>
@@ -269,12 +271,14 @@ export default function GameUI() {
         </div>
 
         {/* AI and Player Move Display */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center w-full">
-            <div className="absolute left-4 md:left-16">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full flex justify-between items-center px-4 md:px-16">
+            <div className="w-32 h-32 flex items-center justify-center">
               {playerChoice && React.createElement(moveIcons[playerChoice], {
                 className: 'w-24 h-24 md:w-32 md:h-32 text-primary drop-shadow-[0_0_20px_hsl(var(--primary))] transition-all duration-300 animate-in fade-in zoom-in-50',
               })}
             </div>
+            
+            <div className="w-40 h-40 flex items-center justify-center">
             {isPending && !aiChoice && gameState === 'playing' ? (
               <Loader className="w-24 h-24 animate-spin text-white" />
             ) : aiChoice ? (
@@ -282,6 +286,7 @@ export default function GameUI() {
                 className: 'w-40 h-40 text-accent drop-shadow-[0_0_20px_hsl(var(--accent))] transition-all duration-300 animate-in fade-in zoom-in-50',
               })
             ) : null}
+            </div>
         </div>
 
         {/* Footer: Controls and Commentary */}
