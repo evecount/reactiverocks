@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack -p 9002",
+    "dev": "next dev -p 9002",
     "build": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",
@@ -49,7 +49,12 @@
     "zod": "^3.24.2",
     "genkit": "^1.0.0",
     "@genkit-ai/google-genai": "^1.0.0",
-    "wav": "^1.0.2"
+    "wav": "^1.0.2",
+    "@tensorflow-models/hand-pose-detection": "^2.0.1",
+    "@tensorflow/tfjs-backend-webgl": "^4.20.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.20.0",
+    "@tensorflow/tfjs": "^4.20.0",
+    "@mediapipe/hands": "^0.4.1675469240"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -59,6 +64,10 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
+  },
+  "overrides": {
+    "react": "$react",
+    "react-dom": "$react-dom"
   },
   "engines": {
     "node": "22.x"

@@ -1,3 +1,4 @@
+// Sovereign Architects: Antigravity x User
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -50,10 +51,13 @@ import { useEffect, useRef } from 'react';
 
 
 // Keypoint and HandDetector types will be imported dynamically
-type Keypoint = any;
+type Keypoint = { x: number; y: number; name?: string };
 type HandDetector = any;
 
-type OnGestureCallback = (keypoints: Keypoint[]) => void;
+type OnGestureCallback = (keypoints: Keypoint[], gesture?: string, confidence?: number) => void;
+
+const BUFFER_SIZE = 10;
+const BOUNCE_THRESHOLD = 5;
 
 export const useReactiveLoop = (
   videoRef: React.RefObject<HTMLVideoElement>,
@@ -63,6 +67,7 @@ export const useReactiveLoop = (
 ) => {
   const detectorRef = useRef<HandDetector | null>(null);
   const animationFrameId = useRef<number | null>(null);
+  const motionBuffer = useRef<number[]>([]);
 
   useEffect(() => {
     if (!isLoopActive) {
@@ -73,23 +78,12 @@ export const useReactiveLoop = (
       return;
     }
 
-    // SIMULATE SUCCESSFUL INITIALIZATION
-    // This will prevent build errors and allow the UI to function
-    // while deferring the actual hand-tracking implementation.
-    setIsDetecting(true);
-    console.log("Hand detection is currently disabled to ensure deployment. The core UI is active.");
-
-
-    // The original detection logic is commented out below.
-    // We will let Antigravity help us resolve these dependencies post-deployment.
-
-    /*
     let disposed = false;
 
     const initAndRunDetection = async () => {
       // Dynamic imports to ensure client-side only execution
-      const tf = await import('@tensorflow/tfjs-core');
-      await import('@tensorflow/tfjs-backend-webgl');
+      const tf = await import('@tensorflow/tfjs'); // Import main entry point to ensure side-effects
+      // await import('@tensorflow/tfjs-backend-webgl'); // Included in @tensorflow/tfjs
       const handPoseDetection = await import('@tensorflow-models/hand-pose-detection');
       // This ensures the side-effects of mediapipe hands run in the browser.
       await import('@mediapipe/hands');
@@ -97,18 +91,28 @@ export const useReactiveLoop = (
       if (disposed) return;
 
       try {
-        await tf.setBackend('webgl');
-        console.log("WebGL backend initialized.");
+        await tf.ready();
+        const currentBackend = tf.getBackend();
+        console.log("Current TF backend:", currentBackend);
+
+        if (currentBackend !== 'webgl') {
+          try {
+            await tf.setBackend('webgl');
+            console.log("WebGL backend initialized.");
+          } catch (err) {
+            console.warn("WebGL initialization failed, checking available backends...", err);
+          }
+        }
       } catch (e) {
         console.warn("WebGL backend failed to initialize, falling back to wasm.", e);
         try {
-          await import('@tensorflow/tfjs-backend-wasm');
+          await import('@tensorflow/tfjs-backend-wasm'); // Ensure wasm backend is available if needed
           await tf.setBackend('wasm');
-           console.log("WASM backend initialized.");
-        } catch(wasmError) {
-            console.error("WASM backend also failed to initialize.", wasmError);
-            setIsDetecting(false);
-            return;
+          console.log("WASM backend initialized.");
+        } catch (wasmError) {
+          console.error("WASM backend also failed to initialize.", wasmError);
+          setIsDetecting(false);
+          return;
         }
       }
 
@@ -118,7 +122,8 @@ export const useReactiveLoop = (
         const model = handPoseDetection.SupportedModels.MediaPipeHands;
         const detectorConfig = {
           runtime: 'tfjs',
-          modelType: 'lite',
+          modelType: 'full', // Switched to full for better accuracy
+          maxHands: 1,
         } as const;
         const detector = await handPoseDetection.createDetector(model, detectorConfig);
 
@@ -144,19 +149,100 @@ export const useReactiveLoop = (
         !disposed &&
         videoRef.current &&
         detectorRef.current &&
-        videoRef.current.readyState === 4 // HAVE_ENOUGH_DATA
+        videoRef.current.readyState >= 2 // Relaxed from 4 to 2 (HAVE_CURRENT_DATA)
       ) {
         try {
           const hands = await detectorRef.current.estimateHands(videoRef.current, {
             flipHorizontal: true
           });
+
+          // Debug Logging
+          if (Math.random() < 0.05) { // Log occasionally to avoid spam
+            console.log(`[Vision] Hands detected: ${hands.length}`);
+          }
+
           if (hands.length > 0 && hands[0].keypoints) {
-            onGesture(hands[0].keypoints);
-          } else {
-            onGesture([]); // No hands detected
+            const keypoints: Keypoint[] = hands[0].keypoints;
+
+            // Debug Keypoint Structure ONCE
+            if (Math.random() < 0.01) {
+              console.log("[Vision] Keypoint sample:", keypoints[0]);
+              console.log("[Vision] Wrist found:", keypoints.find(k => k.name === 'wrist'));
+            }
+
+            const wrist = keypoints[0]; // Index 0 is always Wrist
+
+            let gesture = "Unknown";
+            let confidence = 0;
+
+            if (wrist) {
+              // Update Motion Vector Buffer
+              motionBuffer.current.push(wrist.y);
+              if (motionBuffer.current.length > BUFFER_SIZE) {
+                motionBuffer.current.shift();
+              }
+
+              // Calculate Velocity (Simple dy) and Energy
+              if (motionBuffer.current.length >= 2) {
+                const currentY = motionBuffer.current[motionBuffer.current.length - 1];
+                const prevY = motionBuffer.current[motionBuffer.current.length - 2];
+                const velocity = currentY - prevY;
+
+                // Detect Bounce (High Energy vertical movement)
+                if (Math.abs(velocity) > BOUNCE_THRESHOLD) {
+                  gesture = velocity < 0 ? "Moving Up" : "Moving Down";
+                  confidence = Math.min(Math.abs(velocity) / 20, 1); // Normalize confidence
+                } else {
+                  // Static Gesture Classification - INDEX BASED (Faster & More Robust)
+                  // 0: Wrist
+                  // 1-4: Thumb (4 tip, 3 ip)
+                  // 5-8: Index (8 tip, 6 pip)
+                  // 9-12: Middle (12 tip, 10 pip)
+                  // 13-16: Ring (16 tip, 14 pip)
+                  // 17-20: Pinky (20 tip, 18 pip)
+
+                  const isExtendedConfig = (tipIdx: number, pipIdx: number) => {
+                    const tip = keypoints[tipIdx];
+                    const pip = keypoints[pipIdx];
+                    if (!tip || !pip) return false;
+                    // Simple distance check: Tip further from wrist than PIP = Extended
+                    const dTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+                    const dPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
+                    return dTip > dPip;
+                  };
+
+                  const thumbExt = isExtendedConfig(4, 3);
+                  const indexExt = isExtendedConfig(8, 6);
+                  const middleExt = isExtendedConfig(12, 10);
+                  const ringExt = isExtendedConfig(16, 14);
+                  const pinkyExt = isExtendedConfig(20, 18);
+
+                  // Debug Finger States
+                  if (Math.random() < 0.02) {
+                    console.log(`[Vision] Fingers: T:${thumbExt} I:${indexExt} M:${middleExt} R:${ringExt} P:${pinkyExt}`);
+                  }
+
+                  const extendedCount = [indexExt, middleExt, ringExt, pinkyExt].filter(Boolean).length;
+
+                  if (extendedCount >= 4) {
+                    gesture = "paper"; // 4 or 5 fingers
+                  } else if (extendedCount <= 1) {
+                    gesture = "rock"; // 0 or 1 finger (forgiving)
+                  } else {
+                    gesture = "scissors"; // 2 or 3 fingers
+                  }
+
+                  confidence = 0.9;
+                }
+              }
+
+              onGesture(keypoints, gesture, confidence);
+            } else {
+              onGesture([], "None", 0); // No hands detected
+            }
           }
         } catch (error) {
-            console.error("Error during hand estimation:", error);
+          console.error("Error during hand estimation:", error);
         }
       }
       if (!disposed) {
@@ -174,11 +260,10 @@ export const useReactiveLoop = (
       }
       if (detectorRef.current) {
         if (typeof detectorRef.current.dispose === 'function') {
-           detectorRef.current.dispose();
+          detectorRef.current.dispose();
         }
         detectorRef.current = null;
       }
     };
-    */
   }, [isLoopActive, videoRef, onGesture, setIsDetecting]);
 };

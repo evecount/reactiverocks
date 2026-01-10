@@ -1,21 +1,21 @@
 
 'use server';
 
-import {ai} from '@/ai/genkit';
-import {googleAI} from '@genkit-ai/google-genai';
-import {z} from 'genkit';
-import {toWav} from '../audio';
+import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
+import { z } from 'genkit';
+import { toWav } from '../audio';
 
 export const speakFlow = ai.defineFlow(
   {
     name: 'speakFlow',
     inputSchema: z.string(),
-    outputSchema: z.string().optional(),
+    outputSchema: z.string().nullable(),
   },
   async (text) => {
     try {
-      const {media} = await ai.generate({
-        model: googleAI.model('gemini-2.5-flash-preview-tts'),
+      const { media } = await ai.generate({
+        model: 'googleai/gemini-2.0-flash-exp',
         config: {
           responseModalities: ['AUDIO'],
           speechConfig: {
@@ -27,7 +27,7 @@ export const speakFlow = ai.defineFlow(
         prompt: text,
       });
       if (!media) {
-        return undefined;
+        return null;
       }
       const audioBuffer = Buffer.from(
         media.url.substring(media.url.indexOf(',') + 1),
@@ -37,13 +37,12 @@ export const speakFlow = ai.defineFlow(
       return `data:audio/wav;base64,${wavB64}`;
     } catch (e) {
       console.error('TTS failed', e);
-      return undefined;
+      return null;
     }
   }
 );
 
-export async function speak(text: string): Promise<string | undefined> {
-    return speakFlow(text);
+export async function speak(text: string): Promise<string | null | undefined> {
+  return speakFlow(text);
 }
 
-    

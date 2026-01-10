@@ -1,9 +1,8 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import Link from 'next/link';
-import { Bot, Loader, User, Send, Mic, MicOff, AlertCircle, Trophy, HomeIcon } from 'lucide-react';
+import { Bot, Loader, User, Send, Mic, MicOff, AlertCircle, Trophy, HomeIcon, ScanFace, Volume2, Pause, Play, Plus, Minus, Settings2, RefreshCw } from 'lucide-react';
 import { runLiveRpsSession } from '@/ai/flows/live-rps-session';
 import { speak } from '@/ai/flows/speak';
 import type { LiveRpsSessionOutput } from '@/ai/flows/live-rps-session';
@@ -22,10 +21,10 @@ import { CircularProgress } from './ui/progress';
 import { useReactiveLoop } from '@/hooks/use-reactive-loop';
 import { detectGesture } from '@/lib/gesture-detector';
 
-type Move = 'rock' | 'paper' | 'scissors';
+type Move = 'rock' | 'paper' | 'scissors' | 'none'; // loosen type for debug
 type GameState = 'idle' | 'starting' | 'playing' | 'ending';
 
-const ROUND_TIME = 5;
+const DEFAULT_ROUND_TIME = 3;
 
 const moveIcons: Record<Move, React.ComponentType<{ className?: string }>> = {
   rock: RockIcon,
@@ -49,13 +48,16 @@ export default function GameUI() {
   const [isPending, startTransition] = useTransition();
   const [isMuted, setIsMuted] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState(true);
-  const [countdown, setCountdown] = useState(ROUND_TIME);
-  const [lastDetectedMove, setLastDetectedMove] = useState<Move | null>(null);
+  const [countdown, setCountdown] = useState(DEFAULT_ROUND_TIME);
+  const [lastDetectedMove, setLastDetectedMove] = useState<string | null>(null);
+  const [lastMoveConfidence, setLastMoveConfidence] = useState<number>(0);
   const [isDetecting, setIsDetecting] = useState(false);
 
+  const [roundDuration, setRoundDuration] = useState(DEFAULT_ROUND_TIME);
+  const [isPaused, setIsPaused] = useState(false);
   const [gameState, setGameState] = useState<GameState>('idle');
   const audioRef = useRef<HTMLAudioElement>(null);
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -73,10 +75,23 @@ export default function GameUI() {
     try {
       const audioData = await speak(text);
       if (audioData) {
-        playAudio(audioData);
+        if (audioRef.current) {
+          audioRef.current.src = audioData;
+          await audioRef.current.play();
+        }
+      } else {
+        // Fallback to Browser TTS if AI voice fails (Guarantee Audio)
+        console.warn("AI Voice failed, falling back to browser TTS");
+        const utterance = new SpeechSynthesisUtterance(text);
+        window.speechSynthesis.speak(utterance);
       }
     } catch (e) {
-      console.error("TTS failed for text:", text, e);
+      console.warn("TTS failed for text:", text, e);
+      // Ultimate Fallback
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        window.speechSynthesis.speak(utterance);
+      }
     }
   }, [isMuted, playAudio]);
 
@@ -85,29 +100,50 @@ export default function GameUI() {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    setCountdown(ROUND_TIME);
-  }, []);
+    setCountdown(roundDuration);
+  }, [roundDuration]);
 
   const startTimer = useCallback(() => {
-    resetTimer();
+    if (timerRef.current) return;
     timerRef.current = setInterval(() => {
-      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+      setCountdown(prev => {
+        if (prev <= 1) {
+          // Timeout Logic: Pause instead of infinite loop reset
+          if (timerRef.current) clearInterval(timerRef.current);
+          timerRef.current = null;
+          setIsPaused(true);
+          playText("Time out. I will wait.");
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
-  }, [resetTimer]);
+  }, [playText]);
+
+
 
   const handlePlay = useCallback(async (move: Move) => {
     if (gameState !== 'playing' || isPending || resultMessage || move === 'none') return;
-    
+
     resetTimer();
     const startTime = Date.now();
 
     startTransition(async () => {
+      // Adaptive Speed Logic: If player matches quickly (top half of the timer), speed up!
+      const timeTaken = roundDuration - countdown;
+      const isFast = timeTaken < (roundDuration / 2);
+
+      if (isFast && roundDuration > 2) {
+        setRoundDuration(prev => Math.max(2, prev - 1));
+        setFluidityCommentary("Speeding up!");
+      }
+
       setPlayerChoice(move);
       setAiChoice(null);
       setResult(null);
       setFluidityScore(null);
       setCommentary("Analyzing...")
-      
+
 
       try {
         const response: LiveRpsSessionOutput | undefined = await runLiveRpsSession({
@@ -150,35 +186,48 @@ export default function GameUI() {
       } catch (error) {
         console.error("Error during AI gameplay:", error);
         toast({
-            variant: "destructive",
-            title: "AI Error",
-            description: "An error occurred while communicating with the AI.",
+          variant: "destructive",
+          title: "AI Error",
+          description: "An error occurred while communicating with the AI.",
         });
         setCommentary("Connection error. Please try again.");
       }
     });
   }, [gameState, isPending, playerName, fluidityScore, toast, playAudio, resetTimer, resultMessage, playText]);
 
-  const onGesture = useCallback((keypoints: any) => {
+  const onGesture = useCallback((keypoints: any, gesture?: string, confidence?: number) => {
     if (!keypoints || isPending || resultMessage) return;
-    
-    const gesture = detectGesture(keypoints);
 
-    if (gesture !== 'none' && gesture !== lastMoveRef.current) {
-        lastMoveRef.current = gesture;
-        handlePlay(gesture);
-    } else if (gesture === 'none') {
-        lastMoveRef.current = null;
+    if (gesture) {
+      setLastDetectedMove(gesture);
+      setLastMoveConfidence(confidence || 0);
+    }
+
+    if (gesture && gesture !== 'none' && gesture !== 'Moving Up' && gesture !== 'Moving Down' && gesture !== 'Static' && gesture !== 'Unknown' && gesture !== lastMoveRef.current) {
+      // Only trigger play on actual game moves (rock/paper/scissors) - logic to be refined for "Rhythm" later
+      // For now, we mainly use this for visual feedback as per user request
+      lastMoveRef.current = gesture;
+      handlePlay(gesture as Move);
     }
   }, [isPending, resultMessage, handlePlay]);
 
-  useReactiveLoop(videoRef, onGesture, setIsDetecting, hasCameraPermission && gameState === 'playing');
+  useReactiveLoop(videoRef, onGesture, setIsDetecting, hasCameraPermission && gameState === 'playing' && !isPaused);
 
+
+  // Audio Cue for First Detection
+  const hasSpokenDetectionRef = useRef(false);
+
+  useEffect(() => {
+    if (isDetecting && lastDetectedMove && lastDetectedMove !== "None" && !hasSpokenDetectionRef.current) {
+      playText("I see you, player!");
+      hasSpokenDetectionRef.current = true;
+    }
+  }, [isDetecting, lastDetectedMove, playText]);
 
   useEffect(() => {
     const getCameraPermission = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({video: true});
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         setHasCameraPermission(true);
 
         if (videoRef.current) {
@@ -205,13 +254,24 @@ export default function GameUI() {
   }, [hasName]);
 
   useEffect(() => {
-    if (gameState === 'playing' && !resultMessage) {
+    if (gameState === 'playing' && !resultMessage && !isPaused && isDetecting) {
       startTimer();
     } else {
-      resetTimer();
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      if (gameState !== 'playing' || resultMessage) {
+        resetTimer();
+      }
     }
-    return () => resetTimer();
-  }, [gameState, resultMessage, startTimer, resetTimer]);
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [gameState, resultMessage, startTimer, resetTimer, isPaused, isDetecting]);
 
 
   useEffect(() => {
@@ -282,8 +342,8 @@ export default function GameUI() {
   const toggleMute = () => {
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
-    if(audioRef.current) {
-        audioRef.current.muted = nextMuted;
+    if (audioRef.current) {
+      audioRef.current.muted = nextMuted;
     }
   }
 
@@ -297,7 +357,7 @@ export default function GameUI() {
         playsInline
         className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-[0.07] crt-flicker"
       ></video>
-      <div className="absolute inset-0 w-full h-full pointer-events-none" style={{background: 'radial-gradient(ellipse at center, transparent 0%, black 70%)'}}></div>
+      <div className="absolute inset-0 w-full h-full pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, transparent 0%, black 70%)' }}></div>
 
 
       {!hasCameraPermission && (
@@ -305,24 +365,52 @@ export default function GameUI() {
           <Alert variant="destructive" className="max-w-md neon-glow">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Camera Access Required</AlertTitle>
-            <AlertDescription>
-              Please allow camera access to use this feature.
+            <AlertDescription className="space-y-4">
+              <p>Please allow camera access to use this feature.</p>
+              <Button
+                onClick={() => window.location.reload()}
+                className="w-full bg-primary text-black hover:bg-primary/80 font-bold"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" /> Retry Camera
+              </Button>
             </AlertDescription>
           </Alert>
         </div>
       )}
-      
-      { hasName && !isDetecting && gameState === 'playing' && (
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center flex-col gap-4 z-20">
-            <Loader className="w-16 h-16 animate-spin text-primary"/>
-            <p className="text-primary font-headline">Loading Vision Core...</p>
-         </div>
+
+      {hasName && !isDetecting && gameState === 'playing' && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center flex-col gap-4 z-20">
+          <Loader className="w-16 h-16 animate-spin text-primary" />
+          <p className="text-primary font-headline">Loading Vision Core...</p>
+        </div>
       )}
 
 
-      <div className="absolute inset-0 pt-14 flex flex-col justify-between p-4 md:p-8">
+      <div className="absolute inset-0 pt-24 flex flex-col justify-between p-4 md:p-8">
         {/* Header: Scores and Timer */}
-        <div className="relative flex justify-between items-start gap-4">
+        {/* Vision Status Indicator - Explicit for User - MOVED TO TOP */}
+        <div className="absolute top-28 left-1/2 -translate-x-1/2 z-[70] pointer-events-none transition-all duration-300">
+          {isDetecting ? (
+            (lastDetectedMove && lastDetectedMove !== "None") ? (
+              <div className="flex items-center gap-2 px-4 py-2 bg-green-500/80 text-black font-bold rounded-full shadow-[0_0_20px_rgba(0,255,0,0.5)] animate-pulse">
+                <ScanFace className="w-5 h-5" />
+                <span>I SEE YOUR HAND: {lastDetectedMove.toUpperCase()}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-4 py-2 bg-red-500/80 text-white font-bold rounded-full shadow-[0_0_20px_rgba(255,0,0,0.5)]">
+                <ScanFace className="w-5 h-5" />
+                <span>CANNOT SEE HAND</span>
+              </div>
+            )
+          ) : (
+            <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/80 text-black font-bold rounded-full">
+              <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+              <span>STARTING VISION...</span>
+            </div>
+          )}
+        </div>
+
+        <div className="relative flex justify-between items-start gap-4 z-[60]">
           <div className="flex items-center gap-4 bg-black/50 backdrop-blur-sm p-3 rounded-lg neon-glow">
             <User className="w-8 h-8 text-primary" />
             <div className="flex-1 w-24">
@@ -330,20 +418,20 @@ export default function GameUI() {
               <p className="font-bold text-4xl digital-font text-white">{playerScore}</p>
             </div>
           </div>
-          
+
           <div className="absolute top-0 left-1/2 -translate-x-1/2 text-center flex flex-col items-center">
-             <div className="relative w-28 h-28 flex items-center justify-center">
+            <div className="relative w-28 h-28 flex items-center justify-center">
               {gameState === 'playing' && (
-                <CircularProgress value={countdown} max={ROUND_TIME} className="absolute inset-0"/>
+                <CircularProgress value={countdown} max={roundDuration} className="absolute inset-0" />
               )}
               <div className="digital-font text-7xl font-bold text-white">
-                  {round > 0 ? round : ''}
+                {round > 0 ? round : ''}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-4 bg-black/50 backdrop-blur-sm p-3 rounded-lg neon-glow">
-             <div className="flex-1 text-right w-24">
+            <div className="flex-1 text-right w-24">
               <p className="font-headline text-accent truncate">QUIP</p>
               <p className="font-bold text-4xl digital-font text-white">{aiScore}</p>
             </div>
@@ -353,13 +441,13 @@ export default function GameUI() {
 
         {/* AI and Player Move Display */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full flex justify-between items-center px-4 md:px-16 pointer-events-none">
-            <div className="w-32 h-32 flex items-center justify-center">
-              {playerChoice && React.createElement(moveIcons[playerChoice], {
-                className: 'w-24 h-24 md:w-32 md:h-32 text-primary drop-shadow-[0_0_20px_hsl(var(--primary))] transition-all duration-300 animate-in fade-in zoom-in-50',
-              })}
-            </div>
-            
-            <div className="w-40 h-40 flex items-center justify-center">
+          <div className="w-32 h-32 flex items-center justify-center">
+            {playerChoice && React.createElement(moveIcons[playerChoice], {
+              className: 'w-24 h-24 md:w-32 md:h-32 text-primary drop-shadow-[0_0_20px_hsl(var(--primary))] transition-all duration-300 animate-in fade-in zoom-in-50',
+            })}
+          </div>
+
+          <div className="w-40 h-40 flex items-center justify-center">
             {isPending && !aiChoice && gameState === 'playing' ? (
               <Loader className="w-24 h-24 animate-spin text-white" />
             ) : aiChoice ? (
@@ -367,7 +455,7 @@ export default function GameUI() {
                 className: 'w-40 h-40 text-accent drop-shadow-[0_0_20px_hsl(var(--accent))] transition-all duration-300 animate-in fade-in zoom-in-50',
               })
             ) : null}
-            </div>
+          </div>
         </div>
 
         {/* Footer: Controls and Commentary */}
@@ -376,71 +464,183 @@ export default function GameUI() {
             <CardContent className="relative p-0 text-sm font-code">
               {hasName && fluidityScore !== null ? (
                 <div className="flex justify-between items-center p-3">
-                    <p>
-                        <span className="text-muted-foreground">Fluidity: </span>
-                        <span className="text-secondary font-bold digital-font">{fluidityScore.toFixed(0)}ms</span>
-                    </p>
-                    <p className="text-right">
-                        <span className="text-muted-foreground">Sync: </span>
-                        <span>{fluidityCommentary}</span>
-                    </p>
+                  <p>
+                    <span className="text-muted-foreground">Fluidity: </span>
+                    <span className="text-secondary font-bold digital-font">{fluidityScore.toFixed(0)}ms</span>
+                  </p>
+                  <p className="text-right">
+                    <span className="text-muted-foreground">Sync: </span>
+                    <span>{fluidityCommentary}</span>
+                  </p>
                 </div>
               ) : (
                 <div className="text-center text-muted-foreground h-[34px] flex items-center justify-center p-3">
                   {hasName ? 'Awaiting round completion...' : ''}
                 </div>
               )}
-              <Separator className="my-0 bg-border/50"/>
-              <div className="text-foreground/90 h-12 text-center flex items-center justify-center text-base p-3">
-                {isPending && commentary === 'Analyzing...' ? <Loader className="w-5 h-5 animate-spin" /> : commentary}
+              <Separator className="my-0 bg-border/50" />
+              <div className="text-foreground/90 h-16 flex items-center bg-black/40 overflow-hidden relative">
+                <style jsx>{`
+                  @keyframes marquee {
+                    0% { transform: translateX(100%); }
+                    100% { transform: translateX(-100%); }
+                  }
+                  .animate-marquee {
+                    animation: marquee 10s linear infinite;
+                    white-space: nowrap;
+                  }
+                `}</style>
+                {isPending && commentary === 'Analyzing...' ?
+                  <div className="w-full flex justify-center"><Loader className="w-5 h-5 animate-spin" /></div> :
+                  <div className="w-full overflow-hidden">
+                    <div className="animate-marquee text-2xl md:text-3xl font-code tracking-widest text-[#00ff00] drop-shadow-[0_0_8px_rgba(0,255,0,0.8)] uppercase px-4 inline-block">
+                      {commentary || "WAITING FOR SIGNAL... WAITING FOR SIGNAL... WAITING FOR SIGNAL..."}
+                    </div>
+                  </div>
+                }
               </div>
-               <Button variant="ghost" size="icon" onClick={toggleMute} className="absolute right-2 top-1/2 -translate-y-1/2 text-white bg-black/30 hover:bg-black/50 rounded-full h-10 w-10">
-                    {isMuted ? <MicOff /> : <Mic />}
-                </Button>
+              <Button variant="ghost" size="icon" onClick={toggleMute} className="absolute right-2 top-1/2 -translate-y-1/2 text-white bg-black/30 hover:bg-black/50 rounded-full h-10 w-10">
+                {isMuted ? <MicOff /> : <Mic />}
+              </Button>
             </CardContent>
           </Card>
-          
+
+          {/* Manual Audio Test - Debugging Tool */}
+          <div className="absolute top-4 right-4 z-[80]">
+            <Button
+              onClick={() => playText("Voice system check. I am online.")}
+              variant="outline"
+              size="sm"
+              className="bg-black/80 text-xs border-primary/50 text-primary hover:bg-primary hover:text-black"
+            >
+              <Volume2 className="w-3 h-3 mr-1" /> Test Voice
+            </Button>
+          </div>
+
           <div className="w-full flex justify-between items-center gap-4">
             <Link href="/" passHref>
-                <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50 w-12 h-12">
-                    <HomeIcon/>
-                </Button>
+              <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50 w-12 h-12">
+                <HomeIcon />
+              </Button>
             </Link>
-            
+
             <div className='flex-1'>
               {!hasName ? (
-                  <form onSubmit={handleNameSubmit} className="flex gap-2 w-full">
-                      <Input 
-                          value={playerName}
-                          onChange={e => setPlayerName(e.target.value)}
-                          placeholder="Enter your name to begin..."
-                          className="font-code bg-black/50 neon-glow border-none text-lg text-center flex-1"
-                          disabled={isPending || !hasCameraPermission}
-                      />
-                      <Button type="submit" size="icon" className="neon-glow border-none w-12 h-12 bg-accent/80 hover:bg-accent" disabled={!playerName.trim() || isPending || !hasCameraPermission}>
-                          {isPending ? <Loader className="animate-spin" /> : <Send />}
-                      </Button>
-                  </form>
+                <form onSubmit={handleNameSubmit} className="flex gap-2 w-full">
+                  <Input
+                    value={playerName}
+                    onChange={e => setPlayerName(e.target.value)}
+                    placeholder="Enter your name to begin..."
+                    className="font-code bg-black/50 neon-glow border-none text-lg text-center flex-1"
+                    disabled={isPending || !hasCameraPermission}
+                  />
+                  <Button type="submit" size="icon" className="neon-glow border-none w-12 h-12 bg-accent/80 hover:bg-accent" disabled={!playerName.trim() || isPending || !hasCameraPermission}>
+                    {isPending ? <Loader className="animate-spin" /> : <Send />}
+                  </Button>
+                </form>
               ) : (
-                  <div className="h-12" />
+                <div className="h-12" />
               )}
             </div>
-            
+
+            {/* Vision Status Indicator - Explicit for User */}
+
+
+            {/* Controls: Vertical Sidebar on Right (Fixed Position) */}
+            <div className="fixed top-1/2 right-4 -translate-y-1/2 flex flex-col items-center gap-6 bg-black/80 rounded-full py-6 px-2 border border-primary/30 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[90] backdrop-blur-md">
+              {/* Pause/Play */}
+              <Button
+                variant={isPaused ? "destructive" : "secondary"}
+                size="icon"
+                className="h-14 w-14 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.2)] border-2 border-white/10 hover:scale-105 transition-transform"
+                onClick={() => {
+                  if (isPaused) {
+                    setIsPaused(false);
+                    setCountdown(roundDuration);
+                    playText("Resuming");
+                  } else {
+                    setIsPaused(true);
+                    playText("Paused");
+                  }
+                }}
+              >
+                {isPaused ? <Play className="w-8 h-8 fill-current" /> : <Pause className="w-8 h-8 fill-current" />}
+              </Button>
+
+              <Separator className="w-8 bg-white/10" />
+
+              {/* Speed Controls */}
+              <div className="flex flex-col items-center gap-3">
+                <Button
+                  variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-white/20 hover:text-primary"
+                  onClick={() => setRoundDuration(prev => Math.min(10, prev + 1))}
+                >
+                  <Plus className="w-6 h-6" />
+                </Button>
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-primary font-bold text-2xl leading-none digital-font">{roundDuration}</span>
+                  <span className="text-[9px] text-muted-foreground font-code leading-none tracking-widest">SEC</span>
+                </div>
+                <Button
+                  variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-white/20 hover:text-primary"
+                  onClick={() => setRoundDuration(prev => Math.max(1, prev - 1))}
+                >
+                  <Minus className="w-6 h-6" />
+                </Button>
+              </div>
+            </div>
+
             <div className='flex justify-end items-center'>
               <Link href="/leaderboard" passHref>
-                  <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50 w-12 h-12">
-                      <Trophy/>
-                  </Button>
+                <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50 w-12 h-12">
+                  <Trophy />
+                </Button>
               </Link>
             </div>
           </div>
         </div>
+
+        {/* Game Controls */}
+        <div className="absolute top-24 right-4 flex flex-col gap-2 z-[70]">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setIsPaused(!isPaused)}
+            className="bg-black/50 text-white border-white/20 hover:bg-white/20"
+            disabled={gameState !== 'playing'}
+          >
+            {isPaused ? <Send className="w-4 h-4 rotate-90" /> : <div className="w-3 h-8 flex gap-1 justify-center items-center"><div className="w-1 h-4 bg-white rounded-full" /><div className="w-1 h-4 bg-white rounded-full" /></div>}
+          </Button>
+
+          <div className="flex flex-col gap-1 bg-black/50 p-1 rounded-lg border border-white/20">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setRoundDuration(d => Math.min(d + 1, 10))}
+              className="h-6 w-8 text-white hover:bg-white/20 text-xs"
+            >
+              +
+            </Button>
+            <div className="text-center text-[10px] font-code text-white/70">
+              {roundDuration}s
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setRoundDuration(d => Math.max(d - 1, 1))}
+              className="h-6 w-8 text-white hover:bg-white/20 text-xs"
+            >
+              -
+            </Button>
+          </div>
+        </div>
+
       </div>
 
       {resultMessage && (
         <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none z-10 text-center">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in"></div>
-          <h2 className={cn("text-8xl font-bold font-headline animate-in fade-in zoom-in-50", 
+          <h2 className={cn("text-8xl font-bold font-headline animate-in fade-in zoom-in-50",
             result === 'win' && 'text-primary',
             result === 'lose' && 'text-destructive',
             resultMessage === 'TIMEOUT' && 'text-destructive',
@@ -454,4 +654,3 @@ export default function GameUI() {
   );
 }
 
-    

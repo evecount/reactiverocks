@@ -1,10 +1,10 @@
 
 'use server';
 
-import {ai} from '@/ai/genkit';
-import {googleAI} from '@genkit-ai/google-genai';
-import {z} from 'genkit';
-import {toWav} from '../audio';
+import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
+import { z } from 'genkit';
+import { toWav } from '../audio';
 
 type Move = 'rock' | 'paper' | 'scissors';
 type Persona = 'STOIC' | 'PUCK' | 'NEUTRAL';
@@ -28,9 +28,9 @@ const LiveRpsSessionOutputSchema = z.object({
 export type LiveRpsSessionOutput = z.infer<typeof LiveRpsSessionOutputSchema>;
 
 function getPersona(move?: Move): Persona {
-    if (move === 'rock') return 'STOIC';
-    if (move === 'scissors' || move === 'paper') return 'PUCK';
-    return 'NEUTRAL';
+  if (move === 'rock') return 'STOIC';
+  if (move === 'scissors' || move === 'paper') return 'PUCK';
+  return 'NEUTRAL';
 }
 
 const STOIC_PROMPT = `Role: You are the STOIC. Your voice is Fenrir.
@@ -68,21 +68,21 @@ function getMasterPrompt(
   if (event === 'GAME_START') {
     return `You are QUIP, an AI sparring partner. Welcome the user named ${userName}. Tell them you are ready to test their reflexes and to make their move when ready. Keep it to a single, short sentence.`;
   }
-  
+
   // USER_MOVE event
   let prompt = `Game state: Player: ${userName}, Fluidity Score: ${fluidityScore || 'N/A'}. User played ${playerMove}. `;
   let personaPrompt = '';
 
   switch (persona) {
     case 'STOIC':
-        personaPrompt = STOIC_PROMPT;
-        break;
+      personaPrompt = STOIC_PROMPT;
+      break;
     case 'PUCK':
-        personaPrompt = PUCK_PROMPT;
-        break;
+      personaPrompt = PUCK_PROMPT;
+      break;
     default: // NEUTRAL
-        personaPrompt = NEUTRAL_PROMPT;
-        break;
+      personaPrompt = NEUTRAL_PROMPT;
+      break;
   }
   return personaPrompt + '\n' + prompt;
 }
@@ -95,13 +95,13 @@ async function runTTS(text: string, persona: Persona): Promise<string | undefine
   };
 
   try {
-    const {media} = await ai.generate({
-      model: googleAI.model('gemini-2.5-flash-preview-tts'),
+    const { media } = await ai.generate({
+      model: 'googleai/gemini-2.0-flash-exp',
       config: {
         responseModalities: ['AUDIO'],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: {voiceName: voiceMap[persona]},
+            prebuiltVoiceConfig: { voiceName: voiceMap[persona] },
           },
         },
       },
@@ -139,8 +139,8 @@ export const liveRpsSession = ai.defineFlow(
     }
 
     // This is the USER_MOVE event
-    const {fluidityScore, playerMove, userName} = input;
-    
+    const { fluidityScore, playerMove, userName } = input;
+
     const moves: Move[] = ['rock', 'paper', 'scissors'];
     let aiMove: Move;
     let gameResult: 'win' | 'lose' | 'draw';
@@ -185,21 +185,21 @@ export const liveRpsSession = ai.defineFlow(
       playerMove,
       fluidityScore
     );
-    
+
     const temperatureMap: Record<Persona, number> = {
-        'STOIC': 0.1,
-        'PUCK': 0.9,
-        'NEUTRAL': 0.5,
+      'STOIC': 0.1,
+      'PUCK': 0.9,
+      'NEUTRAL': 0.5,
     };
 
     const llmResponse = await ai.generate({
       prompt: masterPrompt,
-      model: 'googleai/gemini-2.5-flash',
+      model: 'googleai/gemini-2.0-flash-exp',
       config: {
-          temperature: temperatureMap[persona],
+        temperature: temperatureMap[persona],
       }
     });
-    
+
     const commentaryText = llmResponse.text;
     const audio = await runTTS(commentaryText, persona);
 
