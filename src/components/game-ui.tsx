@@ -131,30 +131,6 @@ export default function GameUI() {
     }
   };
 
-  const handleEndSession = () => {
-    setGameState('ending');
-    liveRpsSession({ userName: playerName, event: "GAME_END" }).then(response => {
-        if(response) {
-            setCommentary(response.commentaryText);
-            if (response.audio) playAudio(response.audio);
-        }
-    });
-
-    setTimeout(() => {
-      setGameState('idle');
-      setPlayerScore(0);
-      setAiScore(0);
-      setRound(0);
-      setFluidityScore(null);
-      setFluidityCommentary('');
-      setHasName(false);
-      setPlayerName('');
-      setPlayerChoice(null);
-      setAiChoice(null);
-      setResult(null);
-    }, 3000); // give time for final message
-  };
-
   const handlePlay = useCallback(async (move: Move) => {
     if (gameState !== 'playing' || isPending) return;
 
@@ -311,7 +287,7 @@ export default function GameUI() {
                     </p>
                 </div>
               ) : (
-                <div className="text-center text-muted-foreground h-5 flex items-center justify-center p-3">
+                <div className="text-center text-muted-foreground h-[34px] flex items-center justify-center p-3">
                   {hasName ? 'Awaiting round completion...' : ''}
                 </div>
               )}
@@ -324,7 +300,7 @@ export default function GameUI() {
           
           <div className="w-full flex justify-between items-center gap-4">
             <Link href="/" passHref>
-                <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
+                <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50 w-12 h-12">
                     <HomeIcon/>
                 </Button>
             </Link>
@@ -366,20 +342,9 @@ export default function GameUI() {
               )}
             </div>
             
-            <div className='flex justify-end items-center gap-4'>
-               {hasName && (
-                <Button 
-                    variant="destructive" 
-                    onClick={handleEndSession}
-                    disabled={gameState === 'ending'}
-                    className="neon-glow bg-destructive/80 hover:bg-destructive"
-                >
-                    <Square className="w-4 h-4 mr-2" />
-                    End
-                </Button>
-              )}
+            <div className='flex justify-end items-center'>
               <Link href="/leaderboard" passHref>
-                  <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50">
+                  <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20 neon-glow bg-black/50 w-12 h-12">
                       <Trophy/>
                   </Button>
               </Link>
@@ -402,5 +367,4 @@ export default function GameUI() {
       )}
     </div>
   );
-
-    
+}
