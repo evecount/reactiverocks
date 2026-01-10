@@ -144,85 +144,91 @@ export default function GameUI() {
     });
   }, [round, playerScore, aiScore, fluidityScoreData, toast]);
 
+  const renderPlayerView = (
+    isPlayer: boolean,
+    score: number,
+    choice: Move | null
+  ) => {
+    const Icon = isPlayer ? User : Bot;
+    const title = isPlayer ? 'You' : 'Sparring Partner';
+    const color = isPlayer ? 'primary' : 'accent';
+    const videoContent = isPlayer ? (
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        className="w-full h-full object-cover scale-x-[-1]"
+      ></video>
+    ) : isPending && !aiChoice ? (
+      <Loader className="w-12 h-12 animate-spin text-accent" />
+    ) : aiChoice ? (
+      React.createElement(moveIcons[aiChoice], {
+        className: 'w-20 h-20 text-accent transition-all duration-300 animate-in fade-in zoom-in-50',
+      })
+    ) : (
+      <div className="text-center text-muted-foreground">
+        <Bot className="w-12 h-12 mx-auto" />
+        <p className="text-xs">Awaiting move...</p>
+      </div>
+    );
+
+    return (
+      <div className="flex items-center gap-4 w-full">
+        <div className="flex flex-col items-center gap-1 w-16 text-center">
+          <Icon className={`w-8 h-8 text-${color}`} />
+          <span className="font-headline text-sm">{title}</span>
+          <span className={`font-bold text-lg text-${color}`}>{score}</span>
+        </div>
+        <div
+          className={`aspect-video flex-1 bg-black rounded-md overflow-hidden border-2 border-${color}/50 flex items-center justify-center`}
+        >
+          {videoContent}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="w-full max-w-7xl mx-auto flex flex-col gap-6 relative">
+    <div className="w-full max-w-md mx-auto flex flex-col gap-4 p-4 relative min-h-screen justify-center">
       <header className="text-center">
-        <h1 className="text-4xl md:text-5xl font-bold font-headline tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary via-white to-accent">Reactive Rock Paper Scissors</h1>
-        <p className="text-muted-foreground mt-2">A Demonstration of a Bio-Sync Digital Nervous System</p>
+        <h1 className="text-3xl font-bold font-headline tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary via-white to-accent">
+          Reactive RPS
+        </h1>
+        <p className="text-xs text-muted-foreground">
+          A Bio-Sync Digital Nervous System Demo
+        </p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        <Card className="overflow-hidden bg-card/80 backdrop-blur-sm">
-          <CardHeader className="flex-row items-center gap-4 space-y-0">
-            <User className="w-8 h-8 text-primary"/>
-            <div>
-              <CardTitle className="font-headline">You</CardTitle>
-              <CardDescription>Score: {playerScore}</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="aspect-video bg-black rounded-md overflow-hidden border-2 border-primary/50 flex items-center justify-center">
-              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]"></video>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="overflow-hidden bg-card/80 backdrop-blur-sm">
-          <CardHeader className="flex-row items-center gap-4 space-y-0">
-            <Bot className="w-8 h-8 text-accent"/>
-            <div>
-              <CardTitle className="font-headline">Sparring Partner</CardTitle>
-              <CardDescription>Score: {aiScore}</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="aspect-video bg-black rounded-md overflow-hidden border-2 border-accent/50 flex items-center justify-center">
-              {isPending && !aiChoice ? (
-                <Loader className="w-16 h-16 animate-spin text-accent" />
-              ) : aiChoice ? (
-                React.createElement(moveIcons[aiChoice], { className: "w-24 h-24 text-accent transition-all duration-300 animate-in fade-in zoom-in-50" })
-              ) : (
-                 <div className="text-center text-muted-foreground">
-                    <Bot className="w-16 h-16 mx-auto" />
-                    <p>Awaiting your move...</p>
-                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex flex-col gap-4 items-center">
+        {renderPlayerView(false, aiScore, aiChoice)}
+        {renderPlayerView(true, playerScore, playerChoice)}
       </div>
 
       <Card className="bg-card/80 backdrop-blur-sm">
-        <CardContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <h3 className="font-headline text-lg text-primary">Qualimetric Analysis</h3>
-            <Separator className="my-2 bg-primary/20"/>
-            {fluidityScoreData ? (
-                <div className="font-code text-sm space-y-2">
-                    <p>
-                        <span className="text-muted-foreground">Fluidity Score: </span>
-                        <span className="text-accent font-bold">{fluidityScoreData.fluidityScore.toFixed(0)}ms</span>
-                    </p>
-                    <p>
-                        <span className="text-muted-foreground">Sync Grade: </span>
-                        <span>{fluidityScoreData.commentary}</span>
-                    </p>
-                </div>
-            ) : (
-                <p className="text-sm text-muted-foreground font-code">Awaiting round completion...</p>
-            )}
-          </div>
-          <div>
-            <h3 className="font-headline text-lg text-accent">System Commentary</h3>
-            <Separator className="my-2 bg-accent/20"/>
-            <p className="text-sm font-code text-foreground/90 h-16">{commentary}</p>
-          </div>
+        <CardContent className="p-3 text-xs font-code">
+          {fluidityScoreData ? (
+            <div className="flex justify-between items-center">
+               <p>
+                  <span className="text-muted-foreground">Fluidity: </span>
+                  <span className="text-accent font-bold">{fluidityScoreData.fluidityScore.toFixed(0)}ms</span>
+              </p>
+              <p className="text-right">
+                  <span className="text-muted-foreground">Sync: </span>
+                  <span>{fluidityScoreData.commentary}</span>
+              </p>
+            </div>
+           ) : (
+               <p className="text-center text-muted-foreground">Awaiting round completion...</p>
+           )}
+           <Separator className="my-2 bg-border/50"/>
+           <p className="text-foreground/90 h-10 text-center flex items-center justify-center">{commentary}</p>
         </CardContent>
       </Card>
 
-      <footer className="flex flex-col items-center gap-4">
-        <p className="font-headline text-lg">Make Your Move</p>
-        <div className="flex items-center justify-center gap-4">
+      <footer className="flex flex-col items-center gap-3">
+        <p className="font-headline text-md">Make Your Move</p>
+        <div className="flex items-center justify-center gap-3">
           {moves.map((move) => (
             <Button
               key={move}
@@ -231,12 +237,12 @@ export default function GameUI() {
               size="lg"
               variant="outline"
               className={cn(
-                "w-24 h-24 md:w-32 md:h-32 flex flex-col gap-2 border-2 text-primary hover:bg-primary/10 hover:text-primary-foreground hover:border-primary",
+                "w-20 h-20 flex flex-col gap-1 border-2 text-primary hover:bg-primary/10 hover:text-primary-foreground hover:border-primary",
                 playerChoice === move && "bg-primary/20 border-primary"
               )}
             >
-              {React.createElement(moveIcons[move], { className: "w-10 h-10 md:w-12 md:h-12" })}
-              <span className="font-headline text-base capitalize">{move}</span>
+              {React.createElement(moveIcons[move], { className: "w-8 h-8" })}
+              <span className="font-headline text-xs capitalize">{move}</span>
             </Button>
           ))}
         </div>
@@ -244,8 +250,8 @@ export default function GameUI() {
       
       {resultMessage && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-          <div className="absolute inset-0 bg-background/70 backdrop-blur-sm animate-in fade-in"></div>
-          <h2 className={cn("text-7xl md:text-9xl font-bold font-headline animate-in fade-in zoom-in-50", result && resultColors[result])}>
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in"></div>
+          <h2 className={cn("text-6xl font-bold font-headline animate-in fade-in zoom-in-50", result && resultColors[result])}>
             {resultMessage}
           </h2>
         </div>
