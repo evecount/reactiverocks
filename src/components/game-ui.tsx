@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef, useCallback, useTransition } from '
 import Link from 'next/link';
 import { Bot, Loader, User, Send, Mic, MicOff, AlertCircle, Trophy, HomeIcon } from 'lucide-react';
 import { liveRpsSession } from '@/ai/flows/live-rps-session';
+import { speak } from '@/ai/flows/speak';
 import type { LiveRpsSessionOutput } from '@/ai/flows/live-rps-session';
 
 import { Button } from '@/components/ui/button';
@@ -92,6 +93,18 @@ export default function GameUI() {
     }
   }, [isMuted]);
 
+  const playText = useCallback(async (text: string) => {
+    if (isMuted) return;
+    try {
+      const audioData = await speak(text);
+      if (audioData) {
+        playAudio(audioData);
+      }
+    } catch (e) {
+      console.error("TTS failed for text:", text, e);
+    }
+  }, [isMuted, playAudio]);
+
   const resetTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -106,13 +119,15 @@ export default function GameUI() {
         setAiScore(s => s + 1);
         setResult('lose');
         setResultMessage("TIMEOUT");
+        playText("Timeout");
         setCommentary("Too slow. Reflexes need honing.");
+        playText("Too slow. Reflexes need honing.");
         setPlayerChoice(null);
         setAiChoice(null);
         setFluidityScore(null);
         setFluidityCommentary("No sync data.");
     });
-  }, [isPending]);
+  }, [isPending, playText]);
 
 
   const startTimer = useCallback(() => {
@@ -161,6 +176,7 @@ export default function GameUI() {
     if (playerName.trim() && !isPending) {
       setHasName(true);
       setGameState('starting');
+      playText(playerName);
       startTransition(async () => {
         try {
           const response = await liveRpsSession({
@@ -221,11 +237,14 @@ export default function GameUI() {
           if (response.gameResult === 'win') {
             setPlayerScore(s => s + 1);
             setResultMessage("YOU WIN");
+            playText("You Win");
           } else if (response.gameResult === 'lose') {
             setAiScore(s => s + 1);
             setResultMessage("YOU LOSE");
+            playText("You Lose");
           } else {
             setResultMessage("DRAW");
+            playText("Draw");
           }
 
           if (currentFluidity < 150) {
@@ -246,7 +265,7 @@ export default function GameUI() {
         setCommentary("Connection error. Please try again.");
       }
     });
-  }, [gameState, isPending, playerName, fluidityScore, toast, playAudio, resetTimer, resultMessage]);
+  }, [gameState, isPending, playerName, fluidityScore, toast, playAudio, resetTimer, resultMessage, playText]);
 
   const toggleMute = () => {
     const nextMuted = !isMuted;
@@ -432,5 +451,3 @@ export default function GameUI() {
     </div>
   );
 }
-
-    
