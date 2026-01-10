@@ -1,133 +1,179 @@
 'use server';
 
-/**
- * @fileOverview Manages a live, streaming Rock-Paper-Scissors session with real-time coaching.
- *
- * - liveRpsSession - Main function to handle the live session.
- * - LiveRpsSessionInput - Defines the input schema for the live session.
- * - LiveRpsSessionOutput - Defines the output schema, including AI's move and audio commentary.
- */
-
-import { ai } from '@/ai/genkit';
-import { z } from 'zod';
-import { toWav } from '../audio';
+import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/google-genai';
+import {z} from 'genkit';
+import {toWav} from '../audio';
 
 const LiveRpsSessionInputSchema = z.object({
-  userMove: z.enum(['rock', 'paper', 'scissors']).optional().describe("The user's move in the game."),
-  fluidityScore: z.number().optional().describe('The fluidity score of the user.'),
-  userName: z.string().describe('The name of the user playing the game.'),
-  state: z.enum(['start', 'move', 'end']).describe('The state of the live session.'),
+  userName: z.string(),
+  event: z.enum(['GAME_START', 'USER_MOVE', 'GAME_END']),
+  playerMove: z.enum(['rock', 'paper', 'scissors']).optional(),
+  fluidityScore: z.number().optional(),
 });
+
 export type LiveRpsSessionInput = z.infer<typeof LiveRpsSessionInputSchema>;
 
 const LiveRpsSessionOutputSchema = z.object({
-  aiMove: z.enum(['rock', 'paper', 'scissors']).optional().describe("The AI's move in the game."),
-  commentaryText: z.string().describe('Real-time coaching and commentary from the AI persona.'),
-  commentaryAudio: z.string().describe('The commentary as a base64 encoded WAV file data URI.'),
-  gameResult: z.enum(['win', 'lose', 'draw']).optional().describe('The result of the game (win, lose, or draw).'),
+  aiMove: z.enum(['rock', 'paper', 'scissors']).optional(),
+  gameResult: z.enum(['win', 'lose', 'draw']).optional(),
+  commentaryText: z.string(),
+  audio: z.string().optional(),
 });
+
 export type LiveRpsSessionOutput = z.infer<typeof LiveRpsSessionOutputSchema>;
 
-
-const personaPrompt = `You are an AI persona playing Rock-Paper-Scissors with the user. Your name is QUINCE.
-You are to provide real-time coaching and commentary during gameplay using the 'Puck' voice.
+function getMasterPrompt(
+  userName: string,
+  event: 'GAME_START' | 'USER_MOVE' | 'GAME_END',
+  playerMove?: 'rock' | 'paper' | 'scissors',
+  fluidityScore?: number
+) {
+  let prompt = `You are an AI persona playing Rock-Paper-Scissors with the user. Your name is QUINCE.
+You are to provide real-time coaching and commentary during gameplay.
 Your goal is to guide the player through the Qualimetric Analysis process, which is a measure of how in-sync they are with you.
+Always respond with your commentary.
 
 Game state:
-- Player: {{userName}}
-- Current Fluidity Score: {{fluidityScore}}
+- Player: ${userName}
+- Fluidity Score (lower is better): ${fluidityScore || 'N/A'}
 
-Instructions:
-- At the start of the game, greet the user by name and explain the concept of the "Fluidity Score" and "Reactive AI".
-- When the user makes a move, respond with your counter-move and provide commentary.
-- The commentary should provide coaching relative to the user's play and the fluidity score.
-- If the user's fluidity score is high (good sync), play the move that would make them lose, but praise their performance.
-- If the user's fluidity score is low (bad sync), play the move that would make them win, and suggest how they can improve their timing.
-- If the fluidity score is medium, play a random move and talk about your own strategy.
-- Your move can only be 'rock', 'paper', or 'scissors'.
-- At the end of the session, say goodbye.
-
-Current Request:
-{{#if (eq state "start")}}
-Generate a welcome message.
-{{/if}}
-{{#if (eq state "move")}}
-The user played: {{userMove}}.
-Based on the rules, determine your move. Your response must include your move and the game result (win, lose, or draw for the user).
-Generate your response, move, and the game result.
-Example: If user plays rock, and you should make them win, you play scissors and the result is 'win'.
-If user plays paper, and you should make them lose, you play scissors and the result is 'lose'.
-{{/if}}
-{{#if (eq state "end")}}
-Generate a goodbye message.
-{{/if}}
 `;
 
-const rpsAndCoachingPrompt = ai.definePrompt({
-  name: 'liveRpsAndCoachingPrompt',
-  input: {
-    schema: LiveRpsSessionInputSchema,
-  },
-  output: {
-    schema: z.object({
-        aiMove: z.enum(['rock', 'paper', 'scissors']).optional(),
-        commentaryText: z.string(),
-        gameResult: z.enum(['win', 'lose', 'draw']).optional(),
-    }),
-  },
-  prompt: personaPrompt,
-  model: 'googleai/gemini-2.5-flash',
-});
+  switch (event) {
+    case 'GAME_START':
+      prompt += `Instructions:
+- Generate a welcome message. The response should be like: "Welcome, ${userName}. I am QUINCE. Let's test your reflexes. When you're ready, make your move."`;
+      break;
 
+    case 'USER_MOVE':
+      prompt += `The user has played ${playerMove}. Your job is to determine the game outcome and provide commentary.
+- If the user seems to be in sync (fluidity score < 150ms), play the move that would make them lose, but praise their performance. Say something like 'Fast, but I'm faster!'
+- If the user seems out of sync (fluidity score > 300ms), play the move that would make them win, and encourage them. Say something like 'You've got this, sync up with me!'
+- Otherwise, play a random move and talk about your own strategy.
+- Your response must be just the commentary text, nothing else.`;
+      break;
 
-export async function liveRpsSession(
-  input: LiveRpsSessionInput
-): Promise<LiveRpsSessionOutput> {
-  return liveRpsSessionFlow(input);
+    case 'GAME_END':
+      prompt += `Instructions:
+- Generate a goodbye message. The response should be like: "Great session, ${userName}. Your fluidity score is improving."`;
+      break;
+  }
+  return prompt;
 }
 
-const liveRpsSessionFlow = ai.defineFlow(
+async function runTTS(text: string): Promise<string | undefined> {
+  try {
+    const {media} = await ai.generate({
+      model: googleAI.model('gemini-2.5-flash-preview-tts'),
+      config: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {voiceName: 'Algenib'},
+          },
+        },
+      },
+      prompt: text,
+    });
+    if (!media) {
+      return undefined;
+    }
+    const audioBuffer = Buffer.from(
+      media.url.substring(media.url.indexOf(',') + 1),
+      'base64'
+    );
+    const wavB64 = await toWav(audioBuffer);
+    return `data:audio/wav;base64,${wavB64}`;
+  } catch (e) {
+    console.error('TTS failed', e);
+    return undefined;
+  }
+}
+
+export const liveRpsSession = ai.defineFlow(
   {
-    name: 'liveRpsSessionFlow',
+    name: 'liveRpsSession',
     inputSchema: LiveRpsSessionInputSchema,
     outputSchema: LiveRpsSessionOutputSchema,
   },
   async (input) => {
-    // 1. Generate text response from the main model
-    const { output: textOutput } = await rpsAndCoachingPrompt(input);
-    if (!textOutput) {
-        throw new Error("Failed to generate text response.");
+    if (input.event === 'GAME_START') {
+      const commentaryText = `Welcome, ${input.userName}. I am QUINCE. Let's test your reflexes. When you're ready, make your move.`;
+      const audio = await runTTS(commentaryText);
+      return {
+        commentaryText,
+        audio,
+      };
     }
+    if (input.event === 'GAME_END') {
+      const commentaryText = `Great session, ${input.userName}. Your fluidity score is improving.`;
+      const audio = await runTTS(commentaryText);
+      return {
+        commentaryText,
+        audio,
+      };
+    }
+
+    // This is the USER_MOVE event
+    const {fluidityScore, playerMove, userName} = input;
     
-    // 2. Generate audio from the text using a TTS model
-    const { media } = await ai.generate({
-        model: 'googleai/gemini-2.5-flash-preview-tts',
-        config: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Puck' },
-            },
-          },
-        },
-        prompt: textOutput.commentaryText,
-    });
+    const moves: Move[] = ['rock', 'paper', 'scissors'];
+    let aiMove: Move;
+    let gameResult: 'win' | 'lose' | 'draw';
 
-    if (!media?.url) {
-        throw new Error('No audio media returned from TTS model');
+    if (!playerMove) {
+      // Should not happen in USER_MOVE event
+      throw new Error("Player move is required for USER_MOVE event.");
     }
 
-    const audioBuffer = Buffer.from(
-        media.url.substring(media.url.indexOf(',') + 1),
-        'base64'
+    if (fluidityScore && fluidityScore < 150) {
+      // User is in sync, AI plays to win (player loses)
+      if (playerMove === 'rock') aiMove = 'paper';
+      else if (playerMove === 'paper') aiMove = 'scissors';
+      else aiMove = 'rock'; // player chose scissors
+    } else if (fluidityScore && fluidityScore > 300) {
+      // User is out of sync, AI plays to lose (player wins)
+      if (playerMove === 'rock') aiMove = 'scissors';
+      else if (playerMove === 'paper') aiMove = 'rock';
+      else aiMove = 'paper'; // player chose scissors
+    } else {
+      // Random move
+      aiMove = moves[Math.floor(Math.random() * moves.length)];
+    }
+
+    if (aiMove === playerMove) {
+      gameResult = 'draw';
+    } else if (
+      (playerMove === 'rock' && aiMove === 'scissors') ||
+      (playerMove === 'paper' && aiMove === 'rock') ||
+      (playerMove === 'scissors' && aiMove === 'paper')
+    ) {
+      gameResult = 'win';
+    } else {
+      gameResult = 'lose';
+    }
+
+    const masterPrompt = getMasterPrompt(
+      userName,
+      'USER_MOVE',
+      playerMove,
+      fluidityScore
     );
-    
-    const wavData = await toWav(audioBuffer);
 
-    // 3. Combine and return
+    const llmResponse = await ai.generate({
+      prompt: masterPrompt,
+      model: 'googleai/gemini-1.5-flash',
+    });
+    
+    const commentaryText = llmResponse.text;
+    const audio = await runTTS(commentaryText);
+
     return {
-      ...textOutput,
-      commentaryAudio: `data:audio/wav;base64,${wavData}`,
+      aiMove,
+      gameResult,
+      commentaryText,
+      audio,
     };
   }
 );

@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
-import { Bot, Loader, User, Send, Play, Square } from 'lucide-react';
-
-import { adaptAIToUserRhythm } from '@/ai/flows/adapt-ai-to-user-rhythm';
-import { liveRpsSession, LiveRpsSessionOutput } from '@/ai/flows/live-rps-session';
+import { Bot, Loader, User, Send, Square, Mic, MicOff, AlertCircle } from 'lucide-react';
+import { liveRpsSession } from '@/ai/flows/live-rps-session';
+import type { LiveRpsSessionOutput } from '@/ai/flows/live-rps-session';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PaperIcon } from '@/components/icons/paper-icon';
 import { RockIcon } from '@/components/icons/rock-icon';
 import { ScissorsIcon } from '@/components/icons/scissors-icon';
@@ -41,65 +41,76 @@ export default function GameUI() {
   const [playerName, setPlayerName] = useState('');
   const [hasName, setHasName] = useState(false);
   const [isPending, startTransition] = useTransition();
-  
-  const [gameState, setGameState] = useState<GameState>('idle');
-  const [sessionAudio, setSessionAudio] = useState<HTMLAudioElement | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [hasCameraPermission, setHasCameraPermission] = useState(true);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [gameState, setGameState] = useState<GameState>('idle');
   const audioRef = useRef<HTMLAudioElement>(null);
+  
+  const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    async function setupWebcam() {
+    async function getCameraPermission() {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
           }
+          setHasCameraPermission(true);
         } catch (err) {
           console.error("Error accessing webcam:", err);
-          toast({
-            variant: "destructive",
-            title: "Webcam Error",
-            description: "Could not access your webcam. Please check permissions and try again.",
-          });
+          setHasCameraPermission(false);
         }
+      } else {
+        setHasCameraPermission(false);
       }
     }
-    setupWebcam();
-  }, [toast]);
-  
+    getCameraPermission();
+  }, []);
+
   useEffect(() => {
-    if(!hasName) {
-        setCommentary("Welcome, Sparring Partner. What should I call you?");
+    if (!hasName) {
+      setCommentary("Welcome, Sparring Partner. What should I call you?");
     }
   }, [hasName]);
 
+  const playAudio = useCallback((audioDataUri: string) => {
+    if (audioRef.current && !isMuted) {
+      audioRef.current.src = audioDataUri;
+      audioRef.current.play().catch(e => console.error("Audio playback failed:", e));
+    }
+  }, [isMuted]);
+
   useEffect(() => {
     if (resultMessage) {
-      const timer = setTimeout(() => setResultMessage(null), 2000);
+      const timer = setTimeout(() => {
+        setResultMessage(null);
+        // Also reset choices for next round visual clarity
+        setPlayerChoice(null);
+        setAiChoice(null);
+        setResult(null);
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [resultMessage]);
 
-  const handleNameSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleNameSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (playerName.trim()) {
+    if (playerName.trim() && !isPending) {
       setHasName(true);
       setGameState('starting');
-      // Here you would also handle anonymous login and storing the user ID
-      
       startTransition(async () => {
         try {
           const response = await liveRpsSession({
             userName: playerName,
-            state: 'start'
+            event: "GAME_START"
           });
-          setCommentary(response.commentaryText);
-          const audio = new Audio(response.commentaryAudio);
-          audio.play();
-          setSessionAudio(audio);
+          if (response) {
+            setCommentary(response.commentaryText);
+            if (response.audio) playAudio(response.audio);
+          }
           setGameState('playing');
         } catch (error) {
           console.error("Error starting session:", error);
@@ -108,114 +119,84 @@ export default function GameUI() {
             title: "AI Error",
             description: "Could not start the session.",
           });
+          setHasName(false);
           setGameState('idle');
         }
       });
     }
   };
 
-  const handleEndSession = async () => {
-    if (!playerName) return;
-
+  const handleEndSession = () => {
     setGameState('ending');
-    startTransition(async () => {
-        try {
-            const response = await liveRpsSession({
-                userName: playerName,
-                state: 'end'
-            });
+    liveRpsSession({ userName: playerName, event: "GAME_END" }).then(response => {
+        if(response) {
             setCommentary(response.commentaryText);
-            if (sessionAudio) {
-                sessionAudio.pause();
-            }
-            const audio = new Audio(response.commentaryAudio);
-            audio.play();
-            setSessionAudio(null);
-            setGameState('idle');
-            // Reset scores or other states if needed
-            setPlayerScore(0);
-            setAiScore(0);
-            setRound(0);
-            setFluidityScore(null);
-            setFluidityCommentary('');
-        } catch (error) {
-            console.error("Error ending session:", error);
-            toast({
-                variant: "destructive",
-                title: "AI Error",
-                description: "Could not end the session properly.",
-            });
-            setGameState('playing'); // Revert to playing if end fails
+            if (response.audio) playAudio(response.audio);
         }
     });
-};
+
+    setTimeout(() => {
+      setGameState('idle');
+      setPlayerScore(0);
+      setAiScore(0);
+      setRound(0);
+      setFluidityScore(null);
+      setFluidityCommentary('');
+      setHasName(false);
+      setPlayerName('');
+      setPlayerChoice(null);
+      setAiChoice(null);
+      setResult(null);
+    }, 3000); // give time for final message
+  };
 
   const handlePlay = useCallback(async (move: Move) => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || isPending) return;
 
+    const startTime = Date.now();
     startTransition(async () => {
       setPlayerChoice(move);
-      setAiChoice(null);
+      setAiChoice(null); // Reset AI choice visuals
       setResult(null);
       setFluidityScore(null);
       setCommentary("Analyzing...")
+      setRound(r => r + 1);
 
-      const userActionTimestamp = Date.now();
-      
       try {
-        const aiResult = await liveRpsSession({
-          userMove: move,
+        const response: LiveRpsSessionOutput | undefined = await liveRpsSession({
           userName: playerName,
-          state: 'move',
-          fluidityScore: fluidityScore,
+          event: "USER_MOVE",
+          playerMove: move,
+          fluidityScore: fluidityScore ?? undefined,
         });
 
-        const aiResponseTimestamp = Date.now();
-        
-        if (aiResult.aiMove && aiResult.gameResult) {
-            const gameResult = aiResult.gameResult;
-            
-            setAiChoice(aiResult.aiMove);
-            setCommentary(aiResult.commentaryText);
-            setResult(gameResult);
-            setRound(r => r + 1);
+        if (response) {
+          const endTime = Date.now();
+          const currentFluidity = endTime - startTime;
+          setFluidityScore(currentFluidity);
+          setAiChoice(response.aiMove || null);
+          setResult(response.gameResult || null);
+          setCommentary(response.commentaryText);
+          if (response.audio) playAudio(response.audio);
 
-            if (gameResult === 'win') {
-                setPlayerScore(s => s + 1);
-                setResultMessage("YOU WIN");
-            } else if (gameResult === 'lose') {
-                setAiScore(s => s + 1);
-                setResultMessage("YOU LOSE");
-            } else {
-                setResultMessage("DRAW");
-            }
-            
-            const currentFluidity = Math.abs(aiResponseTimestamp - userActionTimestamp);
-            setFluidityScore(currentFluidity);
-            if (currentFluidity < 50) {
-              setFluidityCommentary("Excellent Sync!");
-            } else if (currentFluidity < 100) {
-              setFluidityCommentary("Good timing.");
-            } else {
-              setFluidityCommentary("Out of sync.");
-            }
+          if (response.gameResult === 'win') {
+            setPlayerScore(s => s + 1);
+            setResultMessage("YOU WIN");
+          } else if (response.gameResult === 'lose') {
+            setAiScore(s => s + 1);
+            setResultMessage("YOU LOSE");
+          } else {
+            setResultMessage("DRAW");
+          }
 
-            // Play new commentary
-            if (sessionAudio) sessionAudio.pause();
-            const audio = new Audio(aiResult.commentaryAudio);
-            audio.play();
-            setSessionAudio(audio);
-            
-            if ((round + 1) % 3 === 0) {
-                await adaptAIToUserRhythm({
-                    reflexSnapshot: `Round ${round + 1}: Player chose ${move}, AI chose ${aiResult.aiMove}. Result: ${gameResult}. Fluidity: ${currentFluidity}ms.`,
-                    fluidityScore: currentFluidity,
-                    userId: 'user_12345', // Replace with actual anonymous user ID
-                });
-            }
+          if (currentFluidity < 150) {
+            setFluidityCommentary("Excellent Sync!");
+          } else if (currentFluidity < 300) {
+            setFluidityCommentary("Good timing.");
+          } else {
+            setFluidityCommentary("Out of sync.");
+          }
         }
-
-
       } catch (error) {
         console.error("Error during AI gameplay:", error);
         toast({
@@ -226,10 +207,19 @@ export default function GameUI() {
         setCommentary("Connection error. Please try again.");
       }
     });
-  }, [round, playerName, fluidityScore, toast, gameState, sessionAudio]);
+  }, [gameState, isPending, playerName, fluidityScore, toast, playAudio]);
+
+  const toggleMute = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    if(audioRef.current) {
+        audioRef.current.muted = nextMuted;
+    }
+  }
 
   return (
     <div className="fixed inset-0 w-full h-full bg-black">
+      <audio ref={audioRef} className="hidden" />
       <video
         ref={videoRef}
         autoPlay
@@ -238,36 +228,54 @@ export default function GameUI() {
         className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-50"
       ></video>
 
+      {!hasCameraPermission && (
+         <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+            <Alert variant="destructive" className="max-w-md">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Camera Access Required</AlertTitle>
+              <AlertDescription>
+                Please enable camera permissions in your browser settings to play.
+              </AlertDescription>
+            </Alert>
+        </div>
+      )}
+
       <div className="absolute inset-0 flex flex-col justify-between p-4 md:p-8">
         {/* Header: Scores and Timer */}
-        <div className="flex justify-between items-center gap-4">
-          <div className="flex items-center gap-4">
+        <div className="flex justify-between items-start gap-4">
+          <div className="flex items-center gap-4 bg-background/50 backdrop-blur-sm p-2 rounded-lg">
             <User className="w-8 h-8 text-primary" />
-            <div className="flex-1">
+            <div className="flex-1 w-24">
               <p className="font-headline text-primary truncate">{playerName || 'Player'}</p>
-              <div className="h-4 bg-primary/20 rounded-full w-full">
-                <div className="h-full bg-primary rounded-full" style={{ width: `${playerScore * 10}%` }}></div>
-              </div>
+              <p className="font-bold text-2xl text-white">{playerScore}</p>
             </div>
           </div>
-          <div className="font-headline text-5xl font-bold text-white">
-            {round}
+          <div className="text-center">
+            <div className="font-headline text-5xl font-bold text-white">
+                {round}
+            </div>
+            <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white mt-2 bg-black/30 hover:bg-black/50">
+                {isMuted ? <MicOff /> : <Mic />}
+            </Button>
           </div>
-          <div className="flex items-center gap-4">
-             <div className="flex-1 text-right">
-              <p className="font-headline text-accent truncate">Sparring Partner</p>
-              <div className="h-4 bg-accent/20 rounded-full w-full">
-                <div className="h-full bg-accent rounded-full" style={{ width: `${aiScore * 10}%` }}></div>
-              </div>
+          <div className="flex items-center gap-4 bg-background/50 backdrop-blur-sm p-2 rounded-lg">
+             <div className="flex-1 text-right w-24">
+              <p className="font-headline text-accent truncate">QUINCE</p>
+              <p className="font-bold text-2xl text-white">{aiScore}</p>
             </div>
             <Bot className="w-8 h-8 text-accent" />
           </div>
         </div>
 
-        {/* AI Move Display */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+        {/* AI and Player Move Display */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center w-full">
+            <div className="absolute left-4 md:left-16">
+              {playerChoice && React.createElement(moveIcons[playerChoice], {
+                className: 'w-24 h-24 md:w-32 md:h-32 text-primary drop-shadow-[0_0_15px_hsl(var(--primary))] transition-all duration-300 animate-in fade-in zoom-in-50',
+              })}
+            </div>
             {isPending && !aiChoice && gameState === 'playing' ? (
-              <Loader className="w-24 h-24 animate-spin text-accent" />
+              <Loader className="w-24 h-24 animate-spin text-white" />
             ) : aiChoice ? (
               React.createElement(moveIcons[aiChoice], {
                 className: 'w-40 h-40 text-accent drop-shadow-[0_0_15px_hsl(var(--accent))] transition-all duration-300 animate-in fade-in zoom-in-50',
@@ -296,7 +304,7 @@ export default function GameUI() {
                     </p>
                     )}
                     <Separator className="my-2 bg-border/50"/>
-                    <p className="text-foreground/90 h-10 text-center flex items-center justify-center">{isPending ? <Loader className="w-4 h-4 animate-spin" /> : commentary}</p>
+                    <p className="text-foreground/90 h-10 text-center flex items-center justify-center">{isPending && commentary === 'Analyzing...' ? <Loader className="w-4 h-4 animate-spin" /> : commentary}</p>
                 </CardContent>
             </Card>
 
@@ -307,9 +315,10 @@ export default function GameUI() {
                         onChange={e => setPlayerName(e.target.value)}
                         placeholder="Enter your name..."
                         className="font-code"
+                        disabled={isPending || !hasCameraPermission}
                     />
-                    <Button type="submit" size="icon" disabled={!playerName.trim() || isPending}>
-                        <Send />
+                    <Button type="submit" size="icon" disabled={!playerName.trim() || isPending || !hasCameraPermission}>
+                        {isPending ? <Loader className="animate-spin" /> : <Send />}
                     </Button>
                 </form>
             ) : gameState === 'playing' ? (
@@ -318,10 +327,10 @@ export default function GameUI() {
                     <Button
                     key={move}
                     onClick={() => handlePlay(move)}
-                    disabled={isPending}
+                    disabled={isPending || !!resultMessage}
                     variant="outline"
                     className={cn(
-                        "w-24 h-24 flex flex-col gap-1 border-4 text-primary bg-primary/10 hover:bg-primary/20 hover:text-primary-foreground hover:border-primary",
+                        "w-24 h-24 flex flex-col gap-1 border-4 text-primary bg-primary/10 hover:bg-primary/20 hover:border-primary",
                         playerChoice === move && "bg-primary/30 border-primary"
                     )}
                     >
@@ -338,8 +347,8 @@ export default function GameUI() {
                 <Button 
                     variant="destructive" 
                     onClick={handleEndSession}
-                    disabled={gameState !== 'playing'}
-                    className="w-full max-w-sm"
+                    disabled={gameState === 'ending'}
+                    className="w-full max-w-sm mt-2"
                 >
                     <Square className="w-4 h-4 mr-2" />
                     End Session
@@ -360,7 +369,6 @@ export default function GameUI() {
           </h2>
         </div>
       )}
-      <audio ref={audioRef} className="hidden" />
     </div>
   );
 }
