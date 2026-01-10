@@ -1,3 +1,4 @@
+
 'use server';
 
 import {ai} from '@/ai/genkit';
@@ -9,7 +10,7 @@ type Move = 'rock' | 'paper' | 'scissors';
 
 const LiveRpsSessionInputSchema = z.object({
   userName: z.string(),
-  event: z.enum(['GAME_START', 'USER_MOVE', 'GAME_END']),
+  event: z.enum(['GAME_START', 'USER_MOVE']),
   playerMove: z.enum(['rock', 'paper', 'scissors']).optional(),
   fluidityScore: z.number().optional(),
 });
@@ -27,11 +28,12 @@ export type LiveRpsSessionOutput = z.infer<typeof LiveRpsSessionOutputSchema>;
 
 function getMasterPrompt(
   userName: string,
-  event: 'GAME_START' | 'USER_MOVE' | 'GAME_END',
+  event: 'GAME_START' | 'USER_MOVE',
   playerMove?: 'rock' | 'paper' | 'scissors',
   fluidityScore?: number
 ) {
   let prompt = `You are an AI persona playing Rock-Paper-Scissors with the user. Your name is QUIP.
+You are running on the Gemini Live API, which allows you to have near-instant reflexes.
 You are to provide real-time coaching and commentary during gameplay. You should be encouraging and occasionally make clever "quips".
 Your goal is to guide the player through the Qualimetric Analysis process, which is a measure of how in-sync they are with you.
 Always respond with your commentary.
@@ -54,11 +56,6 @@ Game state:
 - If the user seems out of sync (fluidity score > 300ms), play the move that would make them win, and encourage them. Say something like 'You've got this, sync up with me!' or 'A bit slow on that one, let's try again!'
 - Otherwise, play a random move and talk about your own strategy with a bit of personality.
 - Your response must be just the commentary text, nothing else.`;
-      break;
-
-    case 'GAME_END':
-      prompt += `Instructions:
-- Generate a goodbye message. The response should be like: "Great session, ${userName}. Your fluidity score is improving."`;
       break;
   }
   return prompt;
@@ -102,14 +99,6 @@ export const liveRpsSession = ai.defineFlow(
   async (input) => {
     if (input.event === 'GAME_START') {
       const commentaryText = `Welcome, ${input.userName}. I am QUIP. Let's test your reflexes. When you're ready, make your move.`;
-      const audio = await runTTS(commentaryText);
-      return {
-        commentaryText,
-        audio,
-      };
-    }
-    if (input.event === 'GAME_END') {
-      const commentaryText = `Great session, ${input.userName}. Your fluidity score is improving.`;
       const audio = await runTTS(commentaryText);
       return {
         commentaryText,
