@@ -328,7 +328,7 @@ export default function GameUI() {
             
             <div className='flex-1 flex justify-center'>
               {!hasName ? (
-                  <form onSubmit={handleNameSubmit} className="flex gap-2 w-full max-w-sm">
+                  <form onSubmit={handleNameSubmit} className="flex gap-2 w-full max-w-md">
                       <Input 
                           value={playerName}
                           onChange={e => setPlayerName(e.target.value)}
