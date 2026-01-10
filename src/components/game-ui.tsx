@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
-import { Bot, Loader, User, Send } from 'lucide-react';
+import { Bot, Loader, User, Send, Play, Square } from 'lucide-react';
 
-import { aiPlaysRpsAndCoachesUser, type AIPlaysRpsAndCoachesUserOutput } from '@/ai/flows/ai-plays-rps-and-coaches-user';
+import { aiPlaysRpsAndCoachesUser } from '@/ai/flows/ai-plays-rps-and-coaches-user';
 import { calculateAndDisplayFluidityScore, type CalculateAndDisplayFluidityScoreOutput } from '@/ai/flows/calculate-and-display-fluidity-score';
 import { adaptAIToUserRhythm } from '@/ai/flows/adapt-ai-to-user-rhythm';
+import { liveRpsSession, LiveRpsSessionOutput } from '@/ai/flows/live-rps-session';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 
 type Move = 'rock' | 'paper' | 'scissors';
+type GameState = 'idle' | 'starting' | 'playing' | 'ending';
 
 const moves: Move[] = ['rock', 'paper', 'scissors'];
 
@@ -25,18 +27,6 @@ const moveIcons: Record<Move, React.ComponentType<{ className?: string }>> = {
   rock: RockIcon,
   paper: PaperIcon,
   scissors: ScissorsIcon,
-};
-
-const getResult = (playerMove: Move, aiMove: Move): 'win' | 'lose' | 'draw' => {
-  if (playerMove === aiMove) return 'draw';
-  if (
-    (playerMove === 'rock' && aiMove === 'scissors') ||
-    (playerMove === 'scissors' && aiMove === 'paper') ||
-    (playerMove === 'paper' && aiMove === 'rock')
-  ) {
-    return 'win';
-  }
-  return 'lose';
 };
 
 export default function GameUI() {
@@ -52,7 +42,12 @@ export default function GameUI() {
   const [playerName, setPlayerName] = useState('');
   const [hasName, setHasName] = useState(false);
   const [isPending, startTransition] = useTransition();
+  
+  const [gameState, setGameState] = useState<GameState>('idle');
+  const [sessionAudio, setSessionAudio] = useState<HTMLAudioElement | null>(null);
+
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -79,11 +74,8 @@ export default function GameUI() {
   useEffect(() => {
     if(!hasName) {
         setCommentary("Welcome, Sparring Partner. What should I call you?");
-    } else {
-        setCommentary(`Alright, ${playerName}! Let's see what you've got. Make your move.`);
     }
-  }, [hasName, playerName]);
-
+  }, [hasName]);
 
   useEffect(() => {
     if (resultMessage) {
@@ -92,16 +84,74 @@ export default function GameUI() {
     }
   }, [resultMessage]);
 
-  const handleNameSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleNameSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (playerName.trim()) {
       setHasName(true);
+      setGameState('starting');
       // Here you would also handle anonymous login and storing the user ID
+      
+      startTransition(async () => {
+        try {
+          const response = await liveRpsSession({
+            userName: playerName,
+            state: 'start'
+          });
+          setCommentary(response.commentaryText);
+          const audio = new Audio(response.commentaryAudio);
+          audio.play();
+          setSessionAudio(audio);
+          setGameState('playing');
+        } catch (error) {
+          console.error("Error starting session:", error);
+          toast({
+            variant: "destructive",
+            title: "AI Error",
+            description: "Could not start the session.",
+          });
+          setGameState('idle');
+        }
+      });
     }
   };
 
+  const handleEndSession = async () => {
+    if (!playerName) return;
+
+    setGameState('ending');
+    startTransition(async () => {
+        try {
+            const response = await liveRpsSession({
+                userName: playerName,
+                state: 'end'
+            });
+            setCommentary(response.commentaryText);
+            if (sessionAudio) {
+                sessionAudio.pause();
+            }
+            const audio = new Audio(response.commentaryAudio);
+            audio.play();
+            setSessionAudio(null);
+            setGameState('idle');
+            // Reset scores or other states if needed
+            setPlayerScore(0);
+            setAiScore(0);
+            setRound(0);
+            setFluidityScoreData(null);
+        } catch (error) {
+            console.error("Error ending session:", error);
+            toast({
+                variant: "destructive",
+                title: "AI Error",
+                description: "Could not end the session properly.",
+            });
+            setGameState('playing'); // Revert to playing if end fails
+        }
+    });
+};
+
   const handlePlay = useCallback(async (move: Move) => {
-    if (!hasName) return;
+    if (gameState !== 'playing') return;
 
     startTransition(async () => {
       setPlayerChoice(move);
@@ -113,39 +163,51 @@ export default function GameUI() {
       const userActionTimestamp = Date.now();
       
       try {
-        const aiResult = await aiPlaysRpsAndCoachesUser({
+        const aiResult = await liveRpsSession({
           userMove: move,
-          gameState: JSON.stringify({ playerName, playerScore, aiScore, round }),
+          userName: playerName,
+          state: 'move',
           fluidityScore: fluidityScoreData?.fluidityScore,
         });
 
         const aiResponseTimestamp = Date.now();
         
-        const gameResult = getResult(move, aiResult.aiMove);
-        
-        setAiChoice(aiResult.aiMove);
-        setCommentary(aiResult.commentary);
-        setResult(gameResult);
-        setRound(r => r + 1);
+        if (aiResult.aiMove && aiResult.gameResult) {
+            const gameResult = aiResult.gameResult;
+            
+            setAiChoice(aiResult.aiMove);
+            setCommentary(aiResult.commentaryText);
+            setResult(gameResult);
+            setRound(r => r + 1);
 
-        if (gameResult === 'win') {
-          setPlayerScore(s => s + 1);
-          setResultMessage("YOU WIN");
-        } else if (gameResult === 'lose') {
-          setAiScore(s => s + 1);
-          setResultMessage("YOU LOSE");
-        } else {
-          setResultMessage("DRAW");
+            if (gameResult === 'win') {
+                setPlayerScore(s => s + 1);
+                setResultMessage("YOU WIN");
+            } else if (gameResult === 'lose') {
+                setAiScore(s => s + 1);
+                setResultMessage("YOU LOSE");
+            } else {
+                setResultMessage("DRAW");
+            }
+            
+            const fluidityResult = await calculateAndDisplayFluidityScore({ userActionTimestamp, aiResponseTimestamp });
+            setFluidityScoreData(fluidityResult);
+
+            // Play new commentary
+            if (sessionAudio) sessionAudio.pause();
+            const audio = new Audio(aiResult.commentaryAudio);
+            audio.play();
+            setSessionAudio(audio);
+            
+            if ((round + 1) % 3 === 0) {
+                await adaptAIToUserRhythm({
+                    reflexSnapshot: `Round ${round + 1}: Player chose ${move}, AI chose ${aiResult.aiMove}. Result: ${gameResult}. Fluidity: ${fluidityResult.fluidityScore}ms.`,
+                    fluidityScore: fluidityResult.fluidityScore,
+                    userId: 'user_12345', // Replace with actual anonymous user ID
+                });
+            }
         }
-        
-        const fluidityResult = await calculateAndDisplayFluidityScore({ userActionTimestamp, aiResponseTimestamp });
-        setFluidityScoreData(fluidityResult);
 
-        await adaptAIToUserRhythm({
-            reflexSnapshot: `Round ${round + 1}: Player chose ${move}, AI chose ${aiResult.aiMove}. Result: ${gameResult}. Fluidity: ${fluidityResult.fluidityScore}ms.`,
-            fluidityScore: fluidityResult.fluidityScore,
-            userId: 'user_12345', // Replace with actual anonymous user ID
-        });
 
       } catch (error) {
         console.error("Error during AI gameplay:", error);
@@ -157,124 +219,150 @@ export default function GameUI() {
         setCommentary("Connection error. Please try again.");
       }
     });
-  }, [round, playerName, playerScore, aiScore, fluidityScoreData, toast, hasName]);
+  }, [round, playerName, playerScore, aiScore, fluidityScoreData, toast, gameState, sessionAudio]);
 
-  const renderPlayerView = (
-    isPlayer: boolean,
-    score: number,
-    choice: Move | null
-  ) => {
-    const Icon = isPlayer ? User : Bot;
-    const title = isPlayer ? (playerName || 'You') : 'Sparring Partner';
-    const color = isPlayer ? 'primary' : 'accent';
-    const videoContent = isPlayer ? (
+  const HealthBar = ({ score, isPlayer }: { score: number, isPlayer: boolean }) => (
+    <div className={cn("w-2/5 h-8 bg-black/50 border-2 border-primary/50 rounded-full flex items-center p-1", !isPlayer && "flex-row-reverse")}>
+      <div 
+        className="h-full bg-accent rounded-full transition-all duration-500" 
+        style={{ width: `${(score % 10) * 10 || 100}%` }}
+      ></div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 w-full h-full bg-black">
       <video
         ref={videoRef}
         autoPlay
         muted
         playsInline
-        className="w-full h-full object-cover scale-x-[-1]"
+        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-50"
       ></video>
-    ) : isPending && !aiChoice ? (
-      <Loader className="w-12 h-12 animate-spin text-accent" />
-    ) : aiChoice ? (
-      React.createElement(moveIcons[aiChoice], {
-        className: 'w-20 h-20 text-accent transition-all duration-300 animate-in fade-in zoom-in-50',
-      })
-    ) : (
-      <div className="text-center text-muted-foreground">
-        <Bot className="w-12 h-12 mx-auto" />
-        <p className="text-xs">Awaiting move...</p>
-      </div>
-    );
 
-    return (
-      <div className="flex items-center gap-4 w-full">
-        <div className="flex flex-col items-center gap-1 w-20 text-center">
-          <Icon className={`w-8 h-8 text-${color}`} />
-          <span className="font-headline text-sm truncate">{title}</span>
-          <span className={`font-bold text-lg text-${color}`}>{score}</span>
-        </div>
-        <div
-          className={`aspect-video flex-1 bg-black rounded-md overflow-hidden border-2 border-${color}/50 flex items-center justify-center`}
-        >
-          {videoContent}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="w-full max-w-md mx-auto flex flex-col gap-4 p-4 min-h-[calc(100vh-4rem)] justify-center">
-      <div className="flex flex-col gap-4 items-center">
-        {renderPlayerView(false, aiScore, aiChoice)}
-        {renderPlayerView(true, playerScore, playerChoice)}
-      </div>
-
-      <Card className="bg-card/80 backdrop-blur-sm">
-        <CardContent className="p-3 text-xs font-code">
-          {hasName && fluidityScoreData ? (
-            <div className="flex justify-between items-center">
-               <p>
-                  <span className="text-muted-foreground">Fluidity: </span>
-                  <span className="text-accent font-bold">{fluidityScoreData.fluidityScore.toFixed(0)}ms</span>
-              </p>
-              <p className="text-right">
-                  <span className="text-muted-foreground">Sync: </span>
-                  <span>{fluidityScoreData.commentary}</span>
-              </p>
+      <div className="absolute inset-0 flex flex-col justify-between p-4 md:p-8">
+        {/* Header: Scores and Timer */}
+        <div className="flex justify-between items-center gap-4">
+          <div className="flex items-center gap-4">
+            <User className="w-8 h-8 text-primary" />
+            <div className="flex-1">
+              <p className="font-headline text-primary truncate">{playerName || 'Player'}</p>
+              <div className="h-4 bg-primary/20 rounded-full w-full">
+                <div className="h-full bg-primary rounded-full" style={{ width: `${playerScore * 10}%` }}></div>
+              </div>
             </div>
-           ) : (
-            <p className="text-center text-muted-foreground h-4 flex items-center justify-center">
-                {hasName ? 'Awaiting round completion...' : ' '}
-            </p>
-           )}
-           <Separator className="my-2 bg-border/50"/>
-           <p className="text-foreground/90 h-10 text-center flex items-center justify-center">{commentary}</p>
-        </CardContent>
-      </Card>
-        
-      {!hasName ? (
-        <form onSubmit={handleNameSubmit} className="flex gap-2">
-            <Input 
-                value={playerName}
-                onChange={e => setPlayerName(e.target.value)}
-                placeholder="Enter your name..."
-                className="font-code"
-            />
-            <Button type="submit" size="icon" disabled={!playerName.trim()}>
-                <Send />
-            </Button>
-        </form>
-      ) : (
-        <div className="flex items-center justify-center gap-3">
-          {moves.map((move) => (
-            <Button
-              key={move}
-              onClick={() => handlePlay(move)}
-              disabled={isPending}
-              size="lg"
-              variant="outline"
-              className={cn(
-                "w-20 h-20 flex flex-col gap-1 border-2 text-primary hover:bg-primary/10 hover:text-primary-foreground hover:border-primary",
-                playerChoice === move && "bg-primary/20 border-primary"
-              )}
-            >
-              {React.createElement(moveIcons[move], { className: "w-8 h-8" })}
-              <span className="font-headline text-xs capitalize">{move}</span>
-            </Button>
-          ))}
+          </div>
+          <div className="font-headline text-5xl font-bold text-white">
+            {round}
+          </div>
+          <div className="flex items-center gap-4">
+             <div className="flex-1 text-right">
+              <p className="font-headline text-accent truncate">Sparring Partner</p>
+              <div className="h-4 bg-accent/20 rounded-full w-full">
+                <div className="h-full bg-accent rounded-full" style={{ width: `${aiScore * 10}%` }}></div>
+              </div>
+            </div>
+            <Bot className="w-8 h-8 text-accent" />
+          </div>
         </div>
-      )}
-      
+
+        {/* AI Move Display */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+            {isPending && !aiChoice && gameState === 'playing' ? (
+              <Loader className="w-24 h-24 animate-spin text-accent" />
+            ) : aiChoice ? (
+              React.createElement(moveIcons[aiChoice], {
+                className: 'w-40 h-40 text-accent drop-shadow-[0_0_15px_hsl(var(--accent))] transition-all duration-300 animate-in fade-in zoom-in-50',
+              })
+            ) : null}
+        </div>
+
+        {/* Footer: Controls and Commentary */}
+        <div className="flex flex-col gap-4 items-center">
+            <Card className="bg-card/80 backdrop-blur-sm w-full max-w-2xl">
+                <CardContent className="p-3 text-sm font-code">
+                    {hasName && fluidityScoreData ? (
+                    <div className="flex justify-between items-center">
+                        <p>
+                            <span className="text-muted-foreground">Fluidity: </span>
+                            <span className="text-accent font-bold">{fluidityScoreData.fluidityScore.toFixed(0)}ms</span>
+                        </p>
+                        <p className="text-right">
+                            <span className="text-muted-foreground">Sync: </span>
+                            <span>{fluidityScoreData.commentary}</span>
+                        </p>
+                    </div>
+                    ) : (
+                    <p className="text-center text-muted-foreground h-5 flex items-center justify-center">
+                        {hasName ? 'Awaiting round completion...' : ' '}
+                    </p>
+                    )}
+                    <Separator className="my-2 bg-border/50"/>
+                    <p className="text-foreground/90 h-10 text-center flex items-center justify-center">{isPending ? <Loader className="w-4 h-4 animate-spin" /> : commentary}</p>
+                </CardContent>
+            </Card>
+
+            {!hasName ? (
+                <form onSubmit={handleNameSubmit} className="flex gap-2 w-full max-w-sm">
+                    <Input 
+                        value={playerName}
+                        onChange={e => setPlayerName(e.target.value)}
+                        placeholder="Enter your name..."
+                        className="font-code"
+                    />
+                    <Button type="submit" size="icon" disabled={!playerName.trim() || isPending}>
+                        <Send />
+                    </Button>
+                </form>
+            ) : gameState === 'playing' ? (
+                <div className="flex justify-center gap-4">
+                {moves.map((move) => (
+                    <Button
+                    key={move}
+                    onClick={() => handlePlay(move)}
+                    disabled={isPending}
+                    variant="outline"
+                    className={cn(
+                        "w-24 h-24 flex flex-col gap-1 border-4 text-primary bg-primary/10 hover:bg-primary/20 hover:text-primary-foreground hover:border-primary",
+                        playerChoice === move && "bg-primary/30 border-primary"
+                    )}
+                    >
+                    {React.createElement(moveIcons[move], { className: "w-10 h-10" })}
+                    <span className="font-headline text-sm capitalize">{move}</span>
+                    </Button>
+                ))}
+                </div>
+            ) : (
+                <div className="h-24" />
+            )}
+            
+            {hasName && (
+                <Button 
+                    variant="destructive" 
+                    onClick={handleEndSession}
+                    disabled={gameState !== 'playing'}
+                    className="w-full max-w-sm"
+                >
+                    <Square className="w-4 h-4 mr-2" />
+                    End Session
+                </Button>
+            )}
+        </div>
+      </div>
+
       {resultMessage && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in"></div>
-          <h2 className={cn("text-6xl font-bold font-headline animate-in fade-in zoom-in-50", result && resultColors[result])}>
+          <h2 className={cn("text-8xl font-bold font-headline animate-in fade-in zoom-in-50", 
+            result === 'win' && 'text-primary',
+            result === 'lose' && 'text-destructive',
+            result === 'draw' && 'text-muted-foreground'
+          )}>
             {resultMessage}
           </h2>
         </div>
       )}
+      <audio ref={audioRef} className="hidden" />
     </div>
   );
 }
