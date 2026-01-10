@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
-import { Bot, Loader, User, Send, Square, Mic, MicOff, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Bot, Loader, User, Send, Square, Mic, MicOff, AlertCircle, Trophy, HomeIcon } from 'lucide-react';
 import { liveRpsSession } from '@/ai/flows/live-rps-session';
 import type { LiveRpsSessionOutput } from '@/ai/flows/live-rps-session';
 
@@ -343,17 +344,31 @@ export default function GameUI() {
                 <div className="h-28" />
             )}
             
-            {hasName && (
-                <Button 
-                    variant="destructive" 
-                    onClick={handleEndSession}
-                    disabled={gameState === 'ending'}
-                    className="w-full max-w-sm mt-2 neon-glow bg-destructive/80 hover:bg-destructive"
-                >
-                    <Square className="w-4 h-4 mr-2" />
-                    End Session
-                </Button>
-            )}
+            <div className="w-full max-w-sm flex justify-center items-center gap-2 mt-4 pb-8">
+              {hasName && (
+                  <Button 
+                      variant="destructive" 
+                      onClick={handleEndSession}
+                      disabled={gameState === 'ending'}
+                      className="flex-1 neon-glow bg-destructive/80 hover:bg-destructive"
+                  >
+                      <Square className="w-4 h-4 mr-2" />
+                      End Session
+                  </Button>
+              )}
+               <div className='flex items-center gap-2 bg-black/50 backdrop-blur-sm p-1 rounded-lg neon-glow'>
+                    <Link href="/" passHref>
+                        <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20">
+                            <HomeIcon/>
+                        </Button>
+                    </Link>
+                    <Link href="/leaderboard" passHref>
+                        <Button variant="ghost" size="icon" className="text-white hover:text-primary hover:bg-primary/20">
+                            <Trophy/>
+                        </Button>
+                    </Link>
+                </div>
+            </div>
         </div>
       </div>
 
