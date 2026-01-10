@@ -23,7 +23,7 @@ export default function WhitepaperPage() {
           <p>The term <strong>%r (Residual Reflection)</strong> is the mathematical core of how we bridge the gap between your physical hand movement and the AI’s "thought" process.</p>
 
           <h3 className="text-primary">2.1 What is %r (Residual Reflection)?</h3>
-          <p>In a high-speed system, there is always a lag between <strong>Action</strong> (your hand moving) and <strong>Inference</strong> (Gemini understanding that move). %r is the "leftover" context that exists within that gap.</p>
+          <p>In a high-speed system, there is always a lag between <strong>Action</strong> (your hand moving) and **Inference** (Gemini understanding that move). %r is the "leftover" context that exists within that gap.</p>
           <ul className="list-disc pl-6 space-y-2">
               <li><strong>The Problem:</strong> If the AI waits for 100% of a gesture to finish before reacting, the interaction feels "dead" or laggy.</li>
               <li><strong>The Quince Solution:</strong> We use %r to predict the <em>remainder</em> of the movement. Instead of just seeing where your hand <em>is</em>, the system reflects on where the hand <em>must be going</em> based on the physics of the last 3 frames.</li>
@@ -51,10 +51,88 @@ export default function WhitepaperPage() {
 
           <h3 className="text-primary">2.3 Why it’s called "Quince"</h3>
           <p>The name is a nod to Quine's Paradox: "Yields falsehood when preceded by its quotation." Just as a Quine is a program that prints its own source code, the Quince Algorithm is a vision loop that calculates its own next state. It is self-referential software. By the time the camera actually captures your hand moving, Quince has already "quoted" that movement in its internal model.</p>
+          
+          <Separator className="my-6 bg-border/50"/>
+          
+          <h2 className="text-secondary font-headline">3. Quince State Architecture</h2>
+           <p>To implement the Quince Recursive Algorithm effectively, we need a robust `interface` that tracks the "System's Memory." This ensures the transition between physical gestures and Gemini's personality shifts isn't jarring, but fluid.</p>
+          
+           <h3 className="text-primary">3.1 The Quince Interface</h3>
+          <p>This structure allows the **Residual Reflection (%r)** to be passed back into the loop, creating that self-referential "echo" effect.</p>
+          <pre className="bg-black/50 p-4 rounded-md border border-input overflow-x-auto">
+            <code className="language-typescript text-sm text-white">{
+`/**
+ * QuinceState: The self-referential memory of the Reactive Loop.
+ */
+interface QuinceState {
+  // Fold 1: Spatial Recursion
+  spatial: {
+    lastKeypoints: Array<{ x: number; y: number; z: number }>;
+    residualVector: number[]; // The %r calculation
+    confidence: number;       // Current tracking fidelity
+  };
+
+  // Fold 2: Temporal Recursion
+  temporal: {
+    gestureHistory: string[]; // Last 5 detected frames to prevent "flicker"
+    activePersona: 'STOIC' | 'PUCK' | 'LITHIC'; 
+    momentum: number;         // How "locked in" the current gesture is
+  };
+
+  // Fold 3: Semantic Recursion
+  semantic: {
+    lastAiToken: string;      // The last word Gemini spoke
+    personaDrift: number;     // 0 to 1: How far the AI has moved from its baseline
+    syncEntropy: number;      // Measurement of human-machine biological lag
+  };
+}`
+            }</code>
+          </pre>
+
+          <h3 className="text-primary">3.2 The Recursive Update Function</h3>
+          <p>This is the logic that lives inside your `use-reactive-loop.ts`. It takes the current frame and the `QuinceState`, then yields the next state of the system.</p>
+          <pre className="bg-black/50 p-4 rounded-md border border-input overflow-x-auto">
+            <code className="language-typescript text-sm text-white">{
+`const updateQuinceState = (
+  currentKeypoints: any, 
+  prevState: QuinceState
+): QuinceState => {
+  
+  // 1. Calculate %r (Residual Reflection)
+  const residual = calculateResidual(currentKeypoints, prevState.spatial.lastKeypoints);
+
+  // 2. Recursive Sentiment Check
+  // We determine if the movement is strong enough to trigger a "Persona Shift"
+  const isShifting = Math.abs(residual) > THRESHOLD;
+  
+  return {
+    ...prevState,
+    spatial: {
+      lastKeypoints: currentKeypoints,
+      residualVector: [residual],
+      confidence: currentKeypoints.score || 0.9,
+    },
+    temporal: {
+      ...prevState.temporal,
+      momentum: isShifting ? prevState.temporal.momentum - 0.1 : 1.0,
+      activePersona: determinePersona(currentKeypoints, residual),
+    }
+    // Semantic data is updated via the Gemini Live API callback
+  };
+};`
+            }</code>
+          </pre>
+
+          <h3 className="text-primary">3.3 Implications for Antigravity</h3>
+          <p>By providing this interface to the Antigravity agent in Firebase Studio, you are giving the AI a mental model of its own memory.</p>
+          <ul className="list-disc pl-6 space-y-2">
+            <li><strong>The Benefit:</strong> Instead of writing complex "if-else" logic for every hand move, the AI uses the `QuinceState` to understand if a movement is an "intentional gesture" or just "noise."</li>
+            <li><strong>The Result:</strong> Your **Fluidity Score** (Qualimetric Analysis) becomes much more accurate because the system knows its own history.</li>
+          </ul>
 
           <Separator className="my-6 bg-border/50"/>
           
-          <h2 className="text-secondary font-headline">3. Qualimetric Analysis</h2>
+          <h2 className="text-secondary font-headline">4. Qualimetric Analysis</h2>
           <p>We move beyond binary Win/Loss metrics to Qualimetric Analysis—measuring the quality of the temporal sync:</p>
           <div className="my-4 p-4 bg-black/50 rounded-md border border-input">
             <p className="text-center font-code text-primary text-xl">Fluidity_Score = (Prediction_Confidence * Temporal_Sync) / Latency_ms</p>
