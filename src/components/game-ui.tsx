@@ -297,7 +297,7 @@ export default function GameUI() {
         playsInline
         className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-[0.07] crt-flicker"
       ></video>
-      <div className="absolute inset-0 w-full h-full pointer-events-none" style={{background: 'radial-gradient(ellipse at center, transparent 30%, black 100%)'}}></div>
+      <div className="absolute inset-0 w-full h-full pointer-events-none" style={{background: 'radial-gradient(ellipse at center, transparent 0%, black 70%)'}}></div>
 
 
       {!hasCameraPermission && (
@@ -453,3 +453,5 @@ export default function GameUI() {
     </div>
   );
 }
+
+    
