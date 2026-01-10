@@ -1,7 +1,7 @@
-import GameUI from '@/components/game-ui';
+import GameClientLoader from "@/components/game-client-loader";
 
 export default function Home() {
   return (
-    <GameUI />
+    <GameClientLoader />
   );
 }

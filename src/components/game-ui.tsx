@@ -61,6 +61,25 @@ export default function GameUI() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const lastMoveRef = useRef<Move | null>(null);
 
+  const playAudio = useCallback((audioDataUri: string) => {
+    if (audioRef.current && !isMuted) {
+      audioRef.current.src = audioDataUri;
+      audioRef.current.play().catch(e => console.error("Audio playback failed:", e));
+    }
+  }, [isMuted]);
+
+  const playText = useCallback(async (text: string) => {
+    if (isMuted) return;
+    try {
+      const audioData = await speak(text);
+      if (audioData) {
+        playAudio(audioData);
+      }
+    } catch (e) {
+      console.error("TTS failed for text:", text, e);
+    }
+  }, [isMuted, playAudio]);
+
   const handlePlay = useCallback(async (move: Move) => {
     if (gameState !== 'playing' || isPending || resultMessage || move === 'none') return;
     
@@ -170,24 +189,6 @@ export default function GameUI() {
     }
   }, [hasName]);
 
-  const playAudio = useCallback((audioDataUri: string) => {
-    if (audioRef.current && !isMuted) {
-      audioRef.current.src = audioDataUri;
-      audioRef.current.play().catch(e => console.error("Audio playback failed:", e));
-    }
-  }, [isMuted]);
-
-  const playText = useCallback(async (text: string) => {
-    if (isMuted) return;
-    try {
-      const audioData = await speak(text);
-      if (audioData) {
-        playAudio(audioData);
-      }
-    } catch (e) {
-      console.error("TTS failed for text:", text, e);
-    }
-  }, [isMuted, playAudio]);
 
   const resetTimer = useCallback(() => {
     if (timerRef.current) {
