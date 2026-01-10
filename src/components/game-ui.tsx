@@ -22,7 +22,7 @@ import { useReactiveLoop } from '@/hooks/use-reactive-loop';
 import { detectGesture } from '@/lib/gesture-detector';
 
 type Move = 'rock' | 'paper' | 'scissors' | 'none'; // loosen type for debug
-type GameState = 'idle' | 'starting' | 'playing' | 'ending';
+type GameState = 'idle' | 'starting' | 'instructions' | 'playing' | 'ending';
 
 const DEFAULT_ROUND_TIME = 3;
 
@@ -56,7 +56,12 @@ export default function GameUI() {
   const [roundDuration, setRoundDuration] = useState(DEFAULT_ROUND_TIME);
   const [isPaused, setIsPaused] = useState(false);
   const [gameState, setGameState] = useState<GameState>('idle');
+  const [isMounted, setIsMounted] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
@@ -113,7 +118,7 @@ export default function GameUI() {
           timerRef.current = null;
           setIsPaused(true);
           playText("Time out. I will wait.");
-          return 0;
+          return roundDuration; // Reset to start value so we don't trigger "Lose" effect
         }
         return prev - 1;
       });
@@ -311,32 +316,39 @@ export default function GameUI() {
     e.preventDefault();
     if (playerName.trim() && !isPending) {
       setHasName(true);
-      setGameState('starting');
-      playText(playerName);
-      startTransition(async () => {
-        try {
-          const response = await runLiveRpsSession({
-            userName: playerName,
-            event: "GAME_START"
-          });
-          if (response) {
-            setCommentary(response.commentaryText);
-            if (response.audio) playAudio(response.audio);
-          }
-          setGameState('playing');
-          setRound(1);
-        } catch (error) {
-          console.error("Error starting session:", error);
-          toast({
-            variant: "destructive",
-            title: "AI Error",
-            description: "Could not start the session.",
-          });
-          setHasName(false);
-          setGameState('idle');
-        }
-      });
+      setGameState('instructions'); // Go to instructions first
+      playText(`Welcome, ${playerName}. Prepare yourself.`);
+
+      // We can preload the session here if we want, but let's wait for READY
     }
+  };
+
+  const handleInstructionsReady = () => {
+    setGameState('starting');
+    playText("Initiating neural link. Good luck.");
+    startTransition(async () => {
+      try {
+        const response = await runLiveRpsSession({
+          userName: playerName,
+          event: "GAME_START"
+        });
+        if (response) {
+          setCommentary(response.commentaryText);
+          if (response.audio) playAudio(response.audio);
+        }
+        setGameState('playing');
+        setRound(1);
+      } catch (error) {
+        console.error("Error starting session:", error);
+        toast({
+          variant: "destructive",
+          title: "AI Error",
+          description: "Could not start the session.",
+        });
+        setHasName(false);
+        setGameState('idle');
+      }
+    });
   };
 
   const toggleMute = () => {
@@ -346,6 +358,8 @@ export default function GameUI() {
       audioRef.current.muted = nextMuted;
     }
   }
+
+  if (!isMounted) return null;
 
   return (
     <div className="fixed inset-0 w-full h-full bg-black pt-14">
@@ -357,7 +371,7 @@ export default function GameUI() {
         playsInline
         className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-[0.07] crt-flicker"
       ></video>
-      <div className="absolute inset-0 w-full h-full pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, transparent 0%, black 70%)' }}></div>
+      <div className="absolute inset-0 w-full h-full pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_0%,black_70%)]"></div>
 
 
       {!hasCameraPermission && (
@@ -382,6 +396,54 @@ export default function GameUI() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center flex-col gap-4 z-20">
           <Loader className="w-16 h-16 animate-spin text-primary" />
           <p className="text-primary font-headline">Loading Vision Core...</p>
+        </div>
+      )}
+
+      {/* Instructions Overlay */}
+      {gameState === 'instructions' && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-50 backdrop-blur-sm animate-in fade-in duration-500">
+          <Card className="max-w-2xl w-full mx-4 border-2 border-primary shadow-[0_0_50px_rgba(0,255,100,0.2)] bg-black/80">
+            <CardContent className="flex flex-col items-center p-8 gap-8">
+              <div className="text-center space-y-2">
+                <h2 className="text-4xl md:text-5xl font-headline text-white neon-glow">COMBAT PROTOCOLS</h2>
+                <p className="text-xl text-primary font-code">USER: {playerName.toUpperCase()}</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full text-center">
+                <div className="flex flex-col items-center gap-2 p-4 border border-white/10 rounded-lg hover:border-primary/50 transition-colors">
+                  <RockIcon className="w-16 h-16 text-white" />
+                  <p className="text-primary font-bold">ROCK</p>
+                  <p className="text-xs text-muted-foreground">Crushes Scissors</p>
+                </div>
+                <div className="flex flex-col items-center gap-2 p-4 border border-white/10 rounded-lg hover:border-primary/50 transition-colors">
+                  <PaperIcon className="w-16 h-16 text-white" />
+                  <p className="text-primary font-bold">PAPER</p>
+                  <p className="text-xs text-muted-foreground">Covers Rock</p>
+                </div>
+                <div className="flex flex-col items-center gap-2 p-4 border border-white/10 rounded-lg hover:border-primary/50 transition-colors">
+                  <ScissorsIcon className="w-16 h-16 text-white" />
+                  <p className="text-primary font-bold">SCISSORS</p>
+                  <p className="text-xs text-muted-foreground">Cuts Paper</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 text-center max-w-lg">
+                <p className="text-white/80">
+                  1. Show your hand clearly to the camera.<br />
+                  2. Move on the countdown.<br />
+                  3. Use <span className="text-primary">Spacebar</span> or the sidebar to Pause.
+                </p>
+              </div>
+
+              <Button
+                size="lg"
+                className="w-full text-xl py-8 font-headline tracking-widest bg-primary text-black hover:bg-primary/90 hover:scale-105 transition-all shadow-[0_0_30px_rgba(0,255,100,0.4)]"
+                onClick={handleInstructionsReady}
+              >
+                INITIATE LINK
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -505,17 +567,7 @@ export default function GameUI() {
             </CardContent>
           </Card>
 
-          {/* Manual Audio Test - Debugging Tool */}
-          <div className="absolute top-4 right-4 z-[80]">
-            <Button
-              onClick={() => playText("Voice system check. I am online.")}
-              variant="outline"
-              size="sm"
-              className="bg-black/80 text-xs border-primary/50 text-primary hover:bg-primary hover:text-black"
-            >
-              <Volume2 className="w-3 h-3 mr-1" /> Test Voice
-            </Button>
-          </div>
+
 
           <div className="w-full flex justify-between items-center gap-4">
             <Link href="/" passHref>
@@ -601,39 +653,7 @@ export default function GameUI() {
         </div>
 
         {/* Game Controls */}
-        <div className="absolute top-24 right-4 flex flex-col gap-2 z-[70]">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsPaused(!isPaused)}
-            className="bg-black/50 text-white border-white/20 hover:bg-white/20"
-            disabled={gameState !== 'playing'}
-          >
-            {isPaused ? <Send className="w-4 h-4 rotate-90" /> : <div className="w-3 h-8 flex gap-1 justify-center items-center"><div className="w-1 h-4 bg-white rounded-full" /><div className="w-1 h-4 bg-white rounded-full" /></div>}
-          </Button>
 
-          <div className="flex flex-col gap-1 bg-black/50 p-1 rounded-lg border border-white/20">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setRoundDuration(d => Math.min(d + 1, 10))}
-              className="h-6 w-8 text-white hover:bg-white/20 text-xs"
-            >
-              +
-            </Button>
-            <div className="text-center text-[10px] font-code text-white/70">
-              {roundDuration}s
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setRoundDuration(d => Math.max(d - 1, 1))}
-              className="h-6 w-8 text-white hover:bg-white/20 text-xs"
-            >
-              -
-            </Button>
-          </div>
-        </div>
 
       </div>
 

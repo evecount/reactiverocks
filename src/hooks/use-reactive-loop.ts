@@ -224,12 +224,22 @@ export const useReactiveLoop = (
 
                   const extendedCount = [indexExt, middleExt, ringExt, pinkyExt].filter(Boolean).length;
 
-                  if (extendedCount >= 4) {
-                    gesture = "paper"; // 4 or 5 fingers
-                  } else if (extendedCount <= 1) {
-                    gesture = "rock"; // 0 or 1 finger (forgiving)
+                  // Debug logging to help user
+                  if (Math.random() < 0.1) {
+                    console.log(`[Vision] Fingers: ${extendedCount} (T=${thumbExt}) -> I:${indexExt} M:${middleExt} R:${ringExt} P:${pinkyExt}`);
+                  }
+
+                  // Relaxed Logic:
+                  // Paper: 3, 4, or 5 fingers (often Ring/Pinky are hard to see)
+                  // Scissors: Exactly 2 fingers (Index + Middle)
+                  // Rock: 0 or 1 finger
+
+                  if (extendedCount >= 3) {
+                    gesture = "paper";
+                  } else if (extendedCount === 2) {
+                    gesture = "scissors";
                   } else {
-                    gesture = "scissors"; // 2 or 3 fingers
+                    gesture = "rock";
                   }
 
                   confidence = 0.9;
