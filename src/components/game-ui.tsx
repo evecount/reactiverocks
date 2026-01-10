@@ -113,36 +113,12 @@ export default function GameUI() {
     setCountdown(ROUND_TIME);
   }, []);
 
-  const handleTimeout = useCallback(() => {
-    if (isPending) return;
-    startTransition(() => {
-        setAiScore(s => s + 1);
-        setResult('lose');
-        setResultMessage("TIMEOUT");
-        playText("Timeout");
-        setCommentary("Too slow. Reflexes need honing.");
-        playText("Too slow. Reflexes need honing.");
-        setPlayerChoice(null);
-        setAiChoice(null);
-        setFluidityScore(null);
-        setFluidityCommentary("No sync data.");
-    });
-  }, [isPending, playText]);
-
-
   const startTimer = useCallback(() => {
     resetTimer();
     timerRef.current = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current!);
-          handleTimeout();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
-  }, [resetTimer, handleTimeout]);
+  }, [resetTimer]);
 
 
   useEffect(() => {
@@ -156,6 +132,24 @@ export default function GameUI() {
 
 
   useEffect(() => {
+    if (countdown === 0 && gameState === 'playing' && !isPending && !resultMessage) {
+      startTransition(() => {
+        setAiScore(s => s + 1);
+        setResult('lose');
+        setResultMessage("TIMEOUT");
+        playText("Timeout");
+        setCommentary("Too slow. Reflexes need honing.");
+        playText("Too slow. Reflexes need honing.");
+        setPlayerChoice(null);
+        setAiChoice(null);
+        setFluidityScore(null);
+        setFluidityCommentary("No sync data.");
+      });
+    }
+  }, [countdown, gameState, isPending, resultMessage, playText]);
+
+
+  useEffect(() => {
     if (resultMessage) {
       resetTimer();
       const timer = setTimeout(() => {
@@ -166,7 +160,7 @@ export default function GameUI() {
         if (gameState === 'playing') {
           setRound(r => r + 1);
         }
-      }, 3000); // Increased linger time to 3 seconds
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [resultMessage, gameState, resetTimer]);
@@ -451,3 +445,5 @@ export default function GameUI() {
     </div>
   );
 }
+
+    
