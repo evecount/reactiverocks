@@ -15,7 +15,7 @@ export const speakFlow = ai.defineFlow(
   async (text) => {
     try {
       const {media} = await ai.generate({
-        model: googleAI.model('gemini-2.5-flash-tts'),
+        model: googleAI.model('gemini-2.5-flash-preview-tts'),
         config: {
           responseModalities: ['AUDIO'],
           speechConfig: {
@@ -45,3 +45,5 @@ export const speakFlow = ai.defineFlow(
 export async function speak(text: string): Promise<string | undefined> {
     return speakFlow(text);
 }
+
+    

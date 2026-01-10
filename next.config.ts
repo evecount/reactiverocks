@@ -2,8 +2,11 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // This tells Turbopack/Webpack to ignore the problematic mediapipe binaries during build
+  serverExternalPackages: ["@mediapipe/hands", "@tensorflow/tfjs-node"], 
   typescript: {
-    ignoreBuildErrors: true,
+    // During a hackathon push, we sometimes need to ignore errors to get the 'pack' to finish
+    ignoreBuildErrors: true, 
   },
   eslint: {
     ignoreDuringBuilds: true,

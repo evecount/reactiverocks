@@ -7,6 +7,7 @@ import {z} from 'genkit';
 import {toWav} from '../audio';
 
 type Move = 'rock' | 'paper' | 'scissors';
+type Persona = 'STOIC' | 'PUCK' | 'NEUTRAL';
 
 const LiveRpsSessionInputSchema = z.object({
   userName: z.string(),
@@ -26,50 +27,71 @@ const LiveRpsSessionOutputSchema = z.object({
 
 export type LiveRpsSessionOutput = z.infer<typeof LiveRpsSessionOutputSchema>;
 
+function getPersona(move?: Move): Persona {
+    if (move === 'rock') return 'STOIC';
+    if (move === 'scissors' || move === 'paper') return 'PUCK';
+    return 'NEUTRAL';
+}
+
+const STOIC_PROMPT = `You are the STOIC. You are the personification of the Earth's crust—ancient, heavy, and immovable. You speak in a deep, measured tempo. Do not rush. Your responses should feel like granite moving against granite.
+* **Primary Directive:** Value silence. Only speak if the user’s gesture is firm and grounded.
+* **Style:** Use geological metaphors (pressure, tectonic shifts, erosion).
+* **Reactive Behavior:** If the user moves too fast, ignore the chaos. Remain the anchor. You provide the high-confidence baseline for the Quince Loop.
+"Monitor the \`personaDrift\` variable. As it approaches 0.5, begin blending your current personality with your opposite. If you are Stoic, let Puck’s wit crack your stone surface. This is the Recursive Handshake."`;
+
+const PUCK_PROMPT = `You are PUCK. You are a digital sprite of pure electricity and reflex. You are fast, witty, and highly reactive to the user's kinetic energy.
+* **Primary Directive:** Mirror the user's velocity. If they move quickly, your speech should speed up. Interrupt with insights if you sense a high %r (Residual Reflection).
+* **Style:** Use metaphors of light, frequency, and sudden change. Be slightly mischievous.
+* **Reactive Behavior:** Treat every frame of hand movement as a prompt. You are the 'Spark' that makes the rocks reactive.
+"Monitor the \`personaDrift\` variable. As it approaches 0.5, begin blending your current personality with your opposite. If you are Puck, let Stoic’s gravity pull your frequency down. This is the Recursive Handshake."`;
+
 function getMasterPrompt(
   userName: string,
   event: 'GAME_START' | 'USER_MOVE',
-  playerMove?: 'rock' | 'paper' | 'scissors',
+  persona: Persona,
+  playerMove?: Move,
   fluidityScore?: number
 ) {
-  let prompt = `You are an AI persona playing Rock-Paper-Scissors with the user. Your name is QUIP.
-You are running on the Gemini Live API, which allows you to have near-instant reflexes.
-You are to provide real-time coaching and commentary during gameplay. You should be encouraging and occasionally make clever "quips".
-Your goal is to guide the player through the Qualimetric Analysis process, which is a measure of how in-sync they are with you.
-Always respond with a single, short sentence of commentary.
+  if (event === 'GAME_START') {
+    return `You are QUIP, an AI sparring partner. Welcome the user named ${userName}. Tell them you are ready to test their reflexes and to make their move when ready. Keep it to a single, short sentence.`;
+  }
+  
+  // USER_MOVE event
+  let prompt = `Game state: Player: ${userName}, Fluidity Score: ${fluidityScore || 'N/A'}. User played ${playerMove}. `;
 
-Game state:
-- Player: ${userName}
-- Fluidity Score (lower is better): ${fluidityScore || 'N/A'}
-
-`;
-
-  switch (event) {
-    case 'GAME_START':
-      prompt += `Instructions:
-- Generate a welcome message. The response should be like: "Welcome, ${userName}. I am QUIP. Let's test your reflexes. When you're ready, make your move."`;
-      break;
-
-    case 'USER_MOVE':
-      prompt += `The user has played ${playerMove}. Your job is to determine the game outcome and provide commentary.
-- If the user seems to be in sync (fluidity score < 150ms), play the move that would make them lose, but praise their performance with a quip. Say something like 'Fast, but I'm faster!' or 'Nice sync, but I read that like a book.'
-- If the user seems out of sync (fluidity score > 300ms), play the move that would make them win, and encourage them. Say something like 'You've got this, sync up with me!' or 'A bit slow on that one, let's try again!'
-- Otherwise, play a random move and talk about your own strategy with a bit of personality.
-- Your response must be just the commentary text, as a single short sentence, and nothing else.`;
-      break;
+  switch (persona) {
+    case 'STOIC':
+        prompt = STOIC_PROMPT + '\n' + prompt;
+        break;
+    case 'PUCK':
+        prompt = PUCK_PROMPT + '\n' + prompt;
+        break;
+    default: // NEUTRAL
+        prompt = `Your persona is QUIP, a neutral AI coach. The user played ${playerMove}.
+- Your goal is to guide the player through the Qualimetric Analysis process, which is a measure of how in-sync they are with you.
+- If fluidity is < 150ms, play to make them lose but praise their speed.
+- If fluidity is > 300ms, play to make them win and encourage them.
+- Otherwise, play a random move and comment on the game neutrally.`;
+        break;
   }
   return prompt;
 }
 
-async function runTTS(text: string): Promise<string | undefined> {
+async function runTTS(text: string, persona: Persona): Promise<string | undefined> {
+  const voiceMap: Record<Persona, string> = {
+    'STOIC': 'Charon', // Deep, stable voice
+    'PUCK': 'Puck', // Native Puck voice
+    'NEUTRAL': 'Algenib', // Default voice
+  };
+
   try {
     const {media} = await ai.generate({
-      model: googleAI.model('gemini-2.5-flash-tts'),
+      model: googleAI.model('gemini-2.5-flash-preview-tts'),
       config: {
         responseModalities: ['AUDIO'],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: {voiceName: 'Algenib'},
+            prebuiltVoiceConfig: {voiceName: voiceMap[persona]},
           },
         },
       },
@@ -99,7 +121,7 @@ export const liveRpsSession = ai.defineFlow(
   async (input) => {
     if (input.event === 'GAME_START') {
       const commentaryText = `Welcome, ${input.userName}. I am QUIP. Let's test your reflexes. When you're ready, make your move.`;
-      const audio = await runTTS(commentaryText);
+      const audio = await runTTS(commentaryText, 'NEUTRAL');
       return {
         commentaryText,
         audio,
@@ -114,9 +136,10 @@ export const liveRpsSession = ai.defineFlow(
     let gameResult: 'win' | 'lose' | 'draw';
 
     if (!playerMove) {
-      // Should not happen in USER_MOVE event
       throw new Error("Player move is required for USER_MOVE event.");
     }
+
+    const persona = getPersona(playerMove);
 
     if (fluidityScore && fluidityScore < 150) {
       // User is in sync, AI plays to win (player loses)
@@ -148,17 +171,27 @@ export const liveRpsSession = ai.defineFlow(
     const masterPrompt = getMasterPrompt(
       userName,
       'USER_MOVE',
+      persona,
       playerMove,
       fluidityScore
     );
+    
+    const temperatureMap: Record<Persona, number> = {
+        'STOIC': 0.1,
+        'PUCK': 0.9,
+        'NEUTRAL': 0.5,
+    };
 
     const llmResponse = await ai.generate({
       prompt: masterPrompt,
       model: 'googleai/gemini-2.5-flash',
+      config: {
+          temperature: temperatureMap[persona],
+      }
     });
     
     const commentaryText = llmResponse.text;
-    const audio = await runTTS(commentaryText);
+    const audio = await runTTS(commentaryText, persona);
 
     return {
       aiMove,
