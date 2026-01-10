@@ -226,7 +226,7 @@ export default function GameUI() {
         autoPlay
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-30 crt-flicker"
+        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-20 crt-flicker"
       ></video>
 
       {!hasCameraPermission && (
