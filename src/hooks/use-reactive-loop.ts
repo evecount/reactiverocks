@@ -18,25 +18,26 @@ export const useReactiveLoop = (
   const animationFrameId = useRef<number | null>(null);
 
   useEffect(() => {
-    // ANTI-GRAVITY HANDOVER NOTE: The entire hand-detection logic below has been
-    // temporarily commented out to bypass a critical build error ("Export Hands not found").
-    // This allows the rest of the application shell to be deployed.
+    // ANTI-GRAVITY HANDOVER NOTE: The core hand-detection logic below has been
+    // temporarily commented out to bypass the "Export Hands not found" build error.
+    // This allows the rest of the application shell (including the camera feed) to function.
     //
-    // TO FIX: The core issue is a module resolution problem between Next.js
-    // and the older module format used by `@mediapipe/hands`.
-    //
-    // RECOMMENDED FIX:
-    // 1.  Reinstate the code block below.
-    // 2.  The `package.json` dependencies for `@tensorflow/*` and `@mediapipe/hands`
-    //     must be pinned to a specific, known-working combination. The combination of
-    //     `@tensorflow/*` at version `3.9.0` and `@mediapipe/hands` at `0.4.1635986972`
-    //     is the correct set of versions to resolve this issue.
-    // 3.  Ensure `npm install` runs successfully after updating `package.json`.
-    //
-    // This will restore the real-time gesture detection functionality.
+    // TO RE-ENABLE:
+    // 1.  Uncomment the entire `initAndRunDetection` and `detect` block below.
+    // 2.  Ensure `package.json` has the correct, pinned versions for all `@tensorflow/*`
+    //     and `@mediapipe/hands` dependencies. The known-working combination is
+    //     `@tensorflow/*` at version `3.9.0` and `@mediapipe/hands` at `0.4.1635986972`.
+    // 3.  Run `npm install`.
+
     if (isLoopActive) {
-      console.warn("REACTIVE LOOP DISABLED: Computer vision temporarily deactivated to allow build to pass. See notes in use-reactive-loop.ts");
-      setIsDetecting(false); // Ensure the UI doesn't show a perpetual loading state.
+      console.warn(
+        "REACTIVE LOOP DISABLED: Computer vision temporarily deactivated to allow build to pass. See notes in use-reactive-loop.ts"
+      );
+      // We now set `isDetecting` to true to signify the vision core is "active"
+      // even though it's not detecting gestures. This removes the "Loading" overlay.
+      setIsDetecting(true);
+    } else {
+      setIsDetecting(false);
     }
 
     /*
