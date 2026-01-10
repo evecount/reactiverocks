@@ -1,12 +1,22 @@
-# Settings to manage and configure a Firebase App Hosting backend.
-# https://firebase.google.com/docs/app-hosting/configure
+# apphosting.yaml - The Deployment Blueprint for reactive.rocks
+kind: "AppHostingYaml"
+schemaVersion: "v1"
 
-runConfig:
-  cpu: 1
-  memoryMiB: 1024
-  concurrency: 80
-  maxInstances: 10
-  
+# 1. Environment Variables & Secrets
 env:
-  - variable: NEXT_PUBLIC_REACTIVE_VERSION
-    value: "1.0.0-zero-frame"
+  - variable: NEXT_PUBLIC_GEMINI_API_KEY
+    secret: GEMINI_API_KEY_SECRET # Reference the secret name in Cloud Secret Manager
+  - variable: QUINCE_RECURSION_LIMIT
+    value: "15" # Limits the depth of the recursive loop to prevent memory leaks
+
+# 2. Compute Resources (Crucial for TFJS and Next.js 15)
+runConfig:
+  cpu: 2 # Increased to 2 for smoother hand-tracking processing
+  memoryMiB: 2048 # 2GB RAM is the "sweet spot" for MediaPipe + Next.js Server
+  concurrency: 50 # Prevents the node from being overwhelmed by simultaneous sessions
+  maxInstances: 10 # Scaling limit to manage hackathon costs
+
+# 3. Build Configuration
+# This helps the 'Pack' stage ignore non-essential binaries that cause 404s
+buildConfig:
+  runtime: "nodejs22" # Matches the builder we saw in your failed logs
