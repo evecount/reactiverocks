@@ -53,24 +53,27 @@ export default function GameUI() {
   const { toast } = useToast();
 
   useEffect(() => {
-    async function getCameraPermission() {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
-          setHasCameraPermission(true);
-        } catch (err) {
-          console.error("Error accessing webcam:", err);
-          setHasCameraPermission(false);
+    const getCameraPermission = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({video: true});
+        setHasCameraPermission(true);
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
         }
-      } else {
+      } catch (error) {
+        console.error('Error accessing camera:', error);
         setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings to use this app.',
+        });
       }
-    }
+    };
+
     getCameraPermission();
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     if (!hasName) {
@@ -233,14 +236,14 @@ export default function GameUI() {
 
 
       {!hasCameraPermission && (
-         <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-            <Alert variant="destructive" className="max-w-md neon-glow">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Camera Access Required</AlertTitle>
-              <AlertDescription>
-                Please enable camera permissions in your browser settings to play.
-              </AlertDescription>
-            </Alert>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+          <Alert variant="destructive" className="max-w-md neon-glow">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Camera Access Required</AlertTitle>
+            <AlertDescription>
+              Please allow camera access to use this feature.
+            </AlertDescription>
+          </Alert>
         </div>
       )}
 
@@ -308,12 +311,14 @@ export default function GameUI() {
                       </p>
                   </div>
                   ) : (
-                  <p className="text-center text-muted-foreground h-5 flex items-center justify-center">
+                  <div className="text-center text-muted-foreground h-5 flex items-center justify-center">
                       {hasName ? 'Awaiting round completion...' : ' '}
-                  </p>
+                  </div>
                   )}
                   <Separator className="my-2 bg-border/50"/>
-                  <p className="text-foreground/90 h-10 text-center flex items-center justify-center text-base">{isPending && commentary === 'Analyzing...' ? <Loader className="w-5 h-5 animate-spin" /> : commentary}</p>
+                  <div className="text-foreground/90 h-10 text-center flex items-center justify-center text-base">
+                    {isPending && commentary === 'Analyzing...' ? <Loader className="w-5 h-5 animate-spin" /> : commentary}
+                  </div>
               </CardContent>
           </Card>
 
@@ -328,7 +333,7 @@ export default function GameUI() {
             
             <div className='flex-1 flex justify-center'>
               {!hasName ? (
-                  <form onSubmit={handleNameSubmit} className="flex gap-2 w-full max-w-md">
+                  <form onSubmit={handleNameSubmit} className="flex gap-2 w-full max-w-sm">
                       <Input 
                           value={playerName}
                           onChange={e => setPlayerName(e.target.value)}
