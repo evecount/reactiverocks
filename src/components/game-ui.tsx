@@ -302,9 +302,6 @@ export default function GameUI() {
                   {round > 0 ? round : ''}
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white mt-2 bg-black/30 hover:bg-black/50 rounded-full">
-                {isMuted ? <MicOff /> : <Mic />}
-            </Button>
           </div>
 
           <div className="flex items-center gap-4 bg-black/50 backdrop-blur-sm p-3 rounded-lg neon-glow">
@@ -338,7 +335,7 @@ export default function GameUI() {
         {/* Footer: Controls and Commentary */}
         <div className="relative w-full max-w-4xl mx-auto flex flex-col items-center gap-4">
           <Card className="bg-card backdrop-blur-sm w-full neon-glow">
-            <CardContent className="p-0 text-sm font-code">
+            <CardContent className="relative p-0 text-sm font-code">
               {hasName && fluidityScore !== null ? (
                 <div className="flex justify-between items-center p-3">
                     <p>
@@ -359,6 +356,9 @@ export default function GameUI() {
               <div className="text-foreground/90 h-12 text-center flex items-center justify-center text-base p-3">
                 {isPending && commentary === 'Analyzing...' ? <Loader className="w-5 h-5 animate-spin" /> : commentary}
               </div>
+               <Button variant="ghost" size="icon" onClick={toggleMute} className="absolute right-2 top-1/2 -translate-y-1/2 text-white bg-black/30 hover:bg-black/50 rounded-full h-10 w-10">
+                    {isMuted ? <MicOff /> : <Mic />}
+                </Button>
             </CardContent>
           </Card>
           
