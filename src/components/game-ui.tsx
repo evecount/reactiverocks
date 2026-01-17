@@ -204,15 +204,23 @@ export default function GameUI() {
     if (gesture) {
       setLastDetectedMove(gesture);
       setLastMoveConfidence(confidence || 0);
+
+      // Wake on Hand: Auto-resume if paused and hand is detected
+      if (isPaused && gesture !== 'None' && gesture !== 'Unknown') {
+        setIsPaused(false);
+        setCountdown(roundDuration);
+        playText("Ready.");
+        return;
+      }
     }
 
-    if (gesture && gesture !== 'none' && gesture !== 'Moving Up' && gesture !== 'Moving Down' && gesture !== 'Static' && gesture !== 'Unknown' && gesture !== lastMoveRef.current) {
+    if (gesture && gesture !== 'none' && gesture !== 'Moving Up' && gesture !== 'Moving Down' && gesture !== 'Static' && gesture !== 'Unknown' && gesture !== lastMoveRef.current && !isPaused) {
       // Only trigger play on actual game moves (rock/paper/scissors) - logic to be refined for "Rhythm" later
       // For now, we mainly use this for visual feedback as per user request
       lastMoveRef.current = gesture;
       handlePlay(gesture as Move);
     }
-  }, [isPending, resultMessage, handlePlay]);
+  }, [isPending, resultMessage, handlePlay, isPaused, roundDuration, playText]);
 
   useReactiveLoop(videoRef, onGesture, setIsDetecting, hasCameraPermission && gameState === 'playing' && !isPaused);
 
@@ -279,13 +287,27 @@ export default function GameUI() {
 
   useEffect(() => {
     if (countdown === 0 && gameState === 'playing' && !isPending && !resultMessage && !isPaused) {
-      // "Wait" behavior as requested: Pause instead of Lose
-      setIsPaused(true);
-      playText("Time out. I will wait.");
-      setCountdown(roundDuration); // Reset for next start
-      setCommentary("Waiting... Hit Play when ready.");
+      // Continuous Loop: Just restart the round
+      setCountdown(roundDuration);
+      setCommentary("Next round!");
     }
   }, [countdown, gameState, isPending, resultMessage, isPaused, playText, roundDuration]);
+
+  // Spacebar Control
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setIsPaused(prev => {
+          const nextState = !prev;
+          playText(nextState ? "Paused" : "Resuming");
+          return nextState;
+        });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [playText]);
 
 
   useEffect(() => {
@@ -361,7 +383,7 @@ export default function GameUI() {
         autoPlay
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-[0.07] crt-flicker"
+        className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
       ></video>
       <div className="absolute inset-0 w-full h-full pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_0%,black_70%)]"></div>
 

@@ -69,6 +69,8 @@ export const useReactiveLoop = (
   const animationFrameId = useRef<number | null>(null);
   const motionBuffer = useRef<number[]>([]);
 
+  const lastRunTime = useRef<number>(0);
+
   useEffect(() => {
     if (!isLoopActive) {
       if (animationFrameId.current) {
@@ -82,10 +84,8 @@ export const useReactiveLoop = (
 
     const initAndRunDetection = async () => {
       // Dynamic imports to ensure client-side only execution
-      const tf = await import('@tensorflow/tfjs'); // Import main entry point to ensure side-effects
-      // await import('@tensorflow/tfjs-backend-webgl'); // Included in @tensorflow/tfjs
+      const tf = await import('@tensorflow/tfjs');
       const handPoseDetection = await import('@tensorflow-models/hand-pose-detection');
-      // This ensures the side-effects of mediapipe hands run in the browser.
       await import('@mediapipe/hands');
 
       if (disposed) return;
@@ -106,7 +106,7 @@ export const useReactiveLoop = (
       } catch (e) {
         console.warn("WebGL backend failed to initialize, falling back to wasm.", e);
         try {
-          await import('@tensorflow/tfjs-backend-wasm'); // Ensure wasm backend is available if needed
+          await import('@tensorflow/tfjs-backend-wasm');
           await tf.setBackend('wasm');
           console.log("WASM backend initialized.");
         } catch (wasmError) {
@@ -122,7 +122,7 @@ export const useReactiveLoop = (
         const model = handPoseDetection.SupportedModels.MediaPipeHands;
         const detectorConfig = {
           runtime: 'tfjs',
-          modelType: 'full', // Switched to full for better accuracy
+          modelType: 'full',
           maxHands: 1,
         } as const;
         const detector = await handPoseDetection.createDetector(model, detectorConfig);
@@ -145,119 +145,88 @@ export const useReactiveLoop = (
     };
 
     const detect = async () => {
-      if (
-        !disposed &&
-        videoRef.current &&
-        detectorRef.current &&
-        videoRef.current.readyState >= 2 // Relaxed from 4 to 2 (HAVE_CURRENT_DATA)
-      ) {
-        try {
-          const hands = await detectorRef.current.estimateHands(videoRef.current, {
-            flipHorizontal: true
-          });
+      if (disposed) return;
 
-          // Debug Logging
-          if (Math.random() < 0.05) { // Log occasionally to avoid spam
-            console.log(`[Vision] Hands detected: ${hands.length}`);
-          }
+      const now = Date.now();
+      // Throttling: Check if enough time has passed (50ms = ~20 FPS)
+      if (now - lastRunTime.current >= 50) {
+        if (
+          videoRef.current &&
+          detectorRef.current &&
+          videoRef.current.readyState >= 2
+        ) {
+          try {
+            const hands = await detectorRef.current.estimateHands(videoRef.current, {
+              flipHorizontal: true
+            });
 
-          if (hands.length > 0 && hands[0].keypoints) {
-            const keypoints: Keypoint[] = hands[0].keypoints;
+            if (hands.length > 0 && hands[0].keypoints) {
+              const keypoints: Keypoint[] = hands[0].keypoints;
+              const wrist = keypoints[0];
 
-            // Debug Keypoint Structure ONCE
-            if (Math.random() < 0.01) {
-              console.log("[Vision] Keypoint sample:", keypoints[0]);
-              console.log("[Vision] Wrist found:", keypoints.find(k => k.name === 'wrist'));
-            }
+              let gesture = "Unknown";
+              let confidence = 0;
 
-            const wrist = keypoints[0]; // Index 0 is always Wrist
-
-            let gesture = "Unknown";
-            let confidence = 0;
-
-            if (wrist) {
-              // Update Motion Vector Buffer
-              motionBuffer.current.push(wrist.y);
-              if (motionBuffer.current.length > BUFFER_SIZE) {
-                motionBuffer.current.shift();
-              }
-
-              // Calculate Velocity (Simple dy) and Energy
-              if (motionBuffer.current.length >= 2) {
-                const currentY = motionBuffer.current[motionBuffer.current.length - 1];
-                const prevY = motionBuffer.current[motionBuffer.current.length - 2];
-                const velocity = currentY - prevY;
-
-                // Detect Bounce (High Energy vertical movement)
-                if (Math.abs(velocity) > BOUNCE_THRESHOLD) {
-                  gesture = velocity < 0 ? "Moving Up" : "Moving Down";
-                  confidence = Math.min(Math.abs(velocity) / 20, 1); // Normalize confidence
-                } else {
-                  // Static Gesture Classification - INDEX BASED (Faster & More Robust)
-                  // 0: Wrist
-                  // 1-4: Thumb (4 tip, 3 ip)
-                  // 5-8: Index (8 tip, 6 pip)
-                  // 9-12: Middle (12 tip, 10 pip)
-                  // 13-16: Ring (16 tip, 14 pip)
-                  // 17-20: Pinky (20 tip, 18 pip)
-
-                  const isExtendedConfig = (tipIdx: number, pipIdx: number) => {
-                    const tip = keypoints[tipIdx];
-                    const pip = keypoints[pipIdx];
-                    if (!tip || !pip) return false;
-                    // Simple distance check: Tip further from wrist than PIP = Extended
-                    const dTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
-                    const dPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
-                    return dTip > dPip;
-                  };
-
-                  const thumbExt = isExtendedConfig(4, 3);
-                  const indexExt = isExtendedConfig(8, 6);
-                  const middleExt = isExtendedConfig(12, 10);
-                  const ringExt = isExtendedConfig(16, 14);
-                  const pinkyExt = isExtendedConfig(20, 18);
-
-                  // Debug Finger States
-                  if (Math.random() < 0.02) {
-                    console.log(`[Vision] Fingers: T:${thumbExt} I:${indexExt} M:${middleExt} R:${ringExt} P:${pinkyExt}`);
-                  }
-
-                  const extendedCount = [indexExt, middleExt, ringExt, pinkyExt].filter(Boolean).length;
-
-                  // Debug logging to help user
-                  if (Math.random() < 0.1) {
-                    console.log(`[Vision] Fingers: ${extendedCount} (T=${thumbExt}) -> I:${indexExt} M:${middleExt} R:${ringExt} P:${pinkyExt}`);
-                  }
-
-                  // Relaxed Logic:
-                  // Paper: 3, 4, or 5 fingers (often Ring/Pinky are hard to see)
-                  // Scissors: Exactly 2 fingers (Index + Middle)
-                  // Rock: 0 or 1 finger
-
-                  if (extendedCount >= 3) {
-                    gesture = "paper";
-                  } else if (extendedCount === 2) {
-                    gesture = "scissors";
-                  } else {
-                    gesture = "rock";
-                  }
-
-                  confidence = 0.9;
+              if (wrist) {
+                // Update Motion Vector Buffer
+                motionBuffer.current.push(wrist.y);
+                if (motionBuffer.current.length > BUFFER_SIZE) {
+                  motionBuffer.current.shift();
                 }
-              }
 
-              onGesture(keypoints, gesture, confidence);
-            } else {
-              onGesture([], "None", 0); // No hands detected
+                // Calculate Velocity (Simple dy) and Energy
+                if (motionBuffer.current.length >= 2) {
+                  const currentY = motionBuffer.current[motionBuffer.current.length - 1];
+                  const prevY = motionBuffer.current[motionBuffer.current.length - 2];
+                  const velocity = currentY - prevY;
+
+                  // Detect Bounce
+                  if (Math.abs(velocity) > BOUNCE_THRESHOLD) {
+                    gesture = velocity < 0 ? "Moving Up" : "Moving Down";
+                    confidence = Math.min(Math.abs(velocity) / 20, 1);
+                  } else {
+                    // Static Gesture Classification
+                    const isExtendedConfig = (tipIdx: number, pipIdx: number) => {
+                      const tip = keypoints[tipIdx];
+                      const pip = keypoints[pipIdx];
+                      if (!tip || !pip) return false;
+                      const dTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+                      const dPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
+                      return dTip > dPip;
+                    };
+
+                    const indexExt = isExtendedConfig(8, 6);
+                    const middleExt = isExtendedConfig(12, 10);
+                    const ringExt = isExtendedConfig(16, 14);
+                    const pinkyExt = isExtendedConfig(20, 18);
+
+                    const extendedCount = [indexExt, middleExt, ringExt, pinkyExt].filter(Boolean).length;
+
+                    if (extendedCount >= 3) {
+                      gesture = "paper";
+                    } else if (extendedCount === 2) {
+                      gesture = "scissors";
+                    } else {
+                      gesture = "rock";
+                    }
+
+                    confidence = 0.9;
+                  }
+                }
+
+                onGesture(keypoints, gesture, confidence);
+              } else {
+                onGesture([], "None", 0);
+              }
             }
+          } catch (error) {
+            console.error("Error during hand estimation:", error);
           }
-        } catch (error) {
-          console.error("Error during hand estimation:", error);
         }
+        lastRunTime.current = now;
       }
-      if (!disposed) {
-        animationFrameId.current = requestAnimationFrame(detect);
-      }
+
+      animationFrameId.current = requestAnimationFrame(detect);
     };
 
     initAndRunDetection();
