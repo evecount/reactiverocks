@@ -2,55 +2,23 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { initializeFirebase } from '@/firebase/index';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 // ====================================================================================
 // !! ANTIGRAVITY AGENT INSTRUCTIONS !!
 // ====================================================================================
 //
-// GOAL:
-// The purpose of this hook is to create a real-time, gesture-driven "Reactive Loop".
-// It uses the user's webcam feed to detect Rock, Paper, and Scissors hand gestures
-// via TensorFlow.js and MediaPipe, triggering game logic in `game-ui.tsx`.
-//
-// PROBLEM:
-// The required npm packages for this functionality caused critical `ERESOLVE`
-// peer dependency conflicts during the `npm ci` step of the Firebase deployment.
-// The core issue is a conflict between modern React/Next.js and the older dependency
-// requirements of the TensorFlow.js ecosystem.
-//
-// FAILED ATTEMPTS:
-// - Using `overrides` in package.json and an `.npmrc` file with `legacy-peer-deps=true`.
-// - Using dynamic `import()` statements within the hook.
-// - Modifying `next.config.js` to treat the packages as external.
-//
-// CURRENT STATE:
-// To achieve a successful deployment, all TensorFlow and MediaPipe dependencies
-// have been REMOVED from `package.json`. The hand-tracking logic below is
-// commented out to prevent compile-time errors. The app is currently "frozen"
-// in a state where the core UI and camera feed work, but no gesture detection occurs.
-//
-// YOUR MISSION:
-// 1. RE-INSTALL DEPENDENCIES: Add the following packages back to `package.json`:
-//    - "@tensorflow/tfjs"
-//    - "@tensorflow-models/hand-pose-detection"
-//    - "@tensorflow/tfjs-backend-webgl"
-//    - "@mediapipe/hands"
-//
-// 2. RESOLVE CONFLICTS: The user provided a "Sovereign" solution that must be
-//    re-attempted as the canonical fix. This involves using the `overrides`
-//    field in `package.json` and creating an `.npmrc` file. This is the key
-//    to solving the `ERESOLVE` error.
-//
-// 3. RE-ENABLE LOGIC: Uncomment the `initAndRunDetection` and `detect` functions
-//    below and remove the simulated success state.
-//
-// 4. VERIFY: The final goal is for the `onGesture` callback to be successfully
-//    invoked with hand keypoint data, making the game playable as intended.
+// STATUS:
+// - TensorFlow.js dependencies: ENABLED
+// - Recursive Residuals: ENABLED
+// - Low-Pass Filter: ENABLED
+// - Latent Event Stream: ENABLED
 //
 // ====================================================================================
 
-
-// Keypoint and HandDetector types will be imported dynamically
+// Define Keypoint type locally to avoid importing from the library in the type definition if possible,
+// but for the hook usage we will use the implied types from the dynamic import or 'any' for simplicity during prototyping.
 type Keypoint = { x: number; y: number; name?: string };
 type HandDetector = any;
 
@@ -58,6 +26,31 @@ type OnGestureCallback = (keypoints: Keypoint[], gesture?: string, confidence?: 
 
 const BUFFER_SIZE = 10;
 const BOUNCE_THRESHOLD = 5;
+const RESIDUAL_GAIN = 0.85; // 'r' coefficient
+
+// 1. The Low-Pass Filter (Zero-Jitter)
+class LowPassFilter {
+  private alpha: number;
+  private prevValue: number | null = null;
+
+  constructor(alpha: number = 0.5) {
+    this.alpha = alpha;
+  }
+
+  filter(value: number): number {
+    if (this.prevValue === null) {
+      this.prevValue = value;
+      return value;
+    }
+    const smoothed = this.alpha * value + (1 - this.alpha) * this.prevValue;
+    this.prevValue = smoothed;
+    return smoothed;
+  }
+
+  reset() {
+    this.prevValue = null;
+  }
+}
 
 export const useReactiveLoop = (
   videoRef: React.RefObject<HTMLVideoElement>,
@@ -68,8 +61,38 @@ export const useReactiveLoop = (
   const detectorRef = useRef<HandDetector | null>(null);
   const animationFrameId = useRef<number | null>(null);
   const motionBuffer = useRef<number[]>([]);
-
   const lastRunTime = useRef<number>(0);
+  const lastLoggedGesture = useRef<string>("None");
+
+  // Filters for Wrist X/Y
+  const filterX = useRef(new LowPassFilter(0.4)); // 0.4 = stronger smoothing
+  const filterY = useRef(new LowPassFilter(0.4));
+
+  // Initialize Firebase Firestore for Latent Stream
+  const { firestore } = initializeFirebase();
+
+  const pushToLatentEvents = async (gesture: string, confidence: number, vector: number[]) => {
+    try {
+      await addDoc(collection(firestore, 'Latent_Events'), {
+        architect_id: 'user-001', // Static for prototype
+        timestamp: serverTimestamp(),
+        type: 'GESTURE_ENTROPY',
+        metadata: {
+          source: 'TensorFlow.js_FrontEnd',
+          confidence_score: confidence,
+          r_coefficient: RESIDUAL_GAIN,
+        },
+        payload: {
+          unstructured_data: {
+            raw_vector: vector,
+            active_project: 'Reactive.rocks'
+          }
+        }
+      });
+    } catch (e) {
+      console.warn("Failed to push Latent Event:", e);
+    }
+  };
 
   useEffect(() => {
     if (!isLoopActive) {
@@ -83,7 +106,7 @@ export const useReactiveLoop = (
     let disposed = false;
 
     const initAndRunDetection = async () => {
-      // Dynamic imports to ensure client-side only execution
+      // Dynamic imports enabled
       const tf = await import('@tensorflow/tfjs');
       const handPoseDetection = await import('@tensorflow-models/hand-pose-detection');
       await import('@mediapipe/hands');
@@ -98,22 +121,12 @@ export const useReactiveLoop = (
         if (currentBackend !== 'webgl') {
           try {
             await tf.setBackend('webgl');
-            console.log("WebGL backend initialized.");
           } catch (err) {
-            console.warn("WebGL initialization failed, checking available backends...", err);
+            console.warn("WebGL initialization failed, using default.", err);
           }
         }
       } catch (e) {
-        console.warn("WebGL backend failed to initialize, falling back to wasm.", e);
-        try {
-          await import('@tensorflow/tfjs-backend-wasm');
-          await tf.setBackend('wasm');
-          console.log("WASM backend initialized.");
-        } catch (wasmError) {
-          console.error("WASM backend also failed to initialize.", wasmError);
-          setIsDetecting(false);
-          return;
-        }
+        console.warn("TF Ready check failed or setup error", e);
       }
 
       if (disposed) return;
@@ -148,7 +161,7 @@ export const useReactiveLoop = (
       if (disposed) return;
 
       const now = Date.now();
-      // Throttling: Check if enough time has passed (50ms = ~20 FPS)
+      // Throttling: 50ms = ~20 FPS
       if (now - lastRunTime.current >= 50) {
         if (
           videoRef.current &&
@@ -161,37 +174,57 @@ export const useReactiveLoop = (
             });
 
             if (hands.length > 0 && hands[0].keypoints) {
-              const keypoints: Keypoint[] = hands[0].keypoints;
-              const wrist = keypoints[0];
+              const rawKeypoints: Keypoint[] = hands[0].keypoints;
+              const wrist = rawKeypoints[0];
+
+              // 2. Apply Low-Pass Filter
+              const smoothedWrist = {
+                x: filterX.current.filter(wrist.x),
+                y: filterY.current.filter(wrist.y),
+                name: wrist.name
+              };
+
+              // Replace raw wrist in keypoints for the callback
+              const keypoints = [...rawKeypoints];
+              keypoints[0] = smoothedWrist;
 
               let gesture = "Unknown";
               let confidence = 0;
 
-              if (wrist) {
+              if (smoothedWrist) {
                 // Update Motion Vector Buffer
-                motionBuffer.current.push(wrist.y);
+                motionBuffer.current.push(smoothedWrist.y);
                 if (motionBuffer.current.length > BUFFER_SIZE) {
                   motionBuffer.current.shift();
                 }
 
-                // Calculate Velocity (Simple dy) and Energy
+                // Calculate Velocity (Simple dy)
                 if (motionBuffer.current.length >= 2) {
                   const currentY = motionBuffer.current[motionBuffer.current.length - 1];
                   const prevY = motionBuffer.current[motionBuffer.current.length - 2];
                   const velocity = currentY - prevY;
 
-                  // Detect Bounce
-                  if (Math.abs(velocity) > BOUNCE_THRESHOLD) {
-                    gesture = velocity < 0 ? "Moving Up" : "Moving Down";
-                    confidence = Math.min(Math.abs(velocity) / 20, 1);
+                  // 3. Speculative Prediction (Antigravity)
+                  // I_(t+1) = I_t + r * (I_t - I_(t-1))
+                  // We treat 'velocity' as the delta (I_t - I_(t-1))
+                  const predictedY = currentY + (RESIDUAL_GAIN * velocity);
+
+                  // Detect Bounce using Predicted State
+                  // If prediction indicates a massive move, we trigger early
+                  const predictedVelocity = predictedY - currentY;
+
+                  if (Math.abs(predictedVelocity) > BOUNCE_THRESHOLD) {
+                    gesture = predictedVelocity < 0 ? "Moving Up" : "Moving Down";
+                    // Confidence scales with the "Aggression" of the move
+                    confidence = Math.min(Math.abs(predictedVelocity) / 15, 1);
                   } else {
                     // Static Gesture Classification
                     const isExtendedConfig = (tipIdx: number, pipIdx: number) => {
                       const tip = keypoints[tipIdx];
                       const pip = keypoints[pipIdx];
                       if (!tip || !pip) return false;
-                      const dTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
-                      const dPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
+                      const dTip = Math.hypot(tip.x - smoothedWrist.x, tip.y - smoothedWrist.y);
+                      const dPip = Math.hypot(pip.x - smoothedWrist.x, pip.y - smoothedWrist.y);
                       return dTip > dPip;
                     };
 
@@ -210,11 +243,17 @@ export const useReactiveLoop = (
                       gesture = "rock";
                     }
 
-                    confidence = 0.9;
+                    confidence = 0.95;
                   }
                 }
 
                 onGesture(keypoints, gesture, confidence);
+
+                // Push to Latent_Events in Firestore
+                if (confidence > 0.9 && gesture !== "None" && gesture !== lastLoggedGesture.current) {
+                  pushToLatentEvents(gesture, confidence, [smoothedWrist.x, smoothedWrist.y]);
+                  lastLoggedGesture.current = gesture;
+                }
               } else {
                 onGesture([], "None", 0);
               }
@@ -246,3 +285,4 @@ export const useReactiveLoop = (
     };
   }, [isLoopActive, videoRef, onGesture, setIsDetecting]);
 };
+
