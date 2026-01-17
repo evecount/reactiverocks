@@ -4,6 +4,8 @@ schemaVersion: "v1"
 
 # 1. Environment Variables & Secrets
 env:
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
   - variable: NEXT_PUBLIC_GEMINI_API_KEY
     secret: GEMINI_API_KEY # This must match your Secret Manager name
   - variable: NEXT_PUBLIC_REACTIVE_DEBUG
