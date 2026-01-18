@@ -47,7 +47,10 @@ const UnifiedGame: React.FC = () => {
     // Refs
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const inputAudioCtxRef = useRef<AudioContext | null>(null);
     const outputAudioCtxRef = useRef<AudioContext | null>(null);
+    const analyserRef = useRef<AnalyserNode | null>(null);
+    const visualizerRef = useRef<HTMLCanvasElement>(null);
     const sessionRef = useRef<any>(null);
     const nextStartTimeRef = useRef<number>(0);
     const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
@@ -72,21 +75,83 @@ const UnifiedGame: React.FC = () => {
         sourcesRef.current.forEach(source => source.stop());
         sourcesRef.current.clear();
 
+        if (inputAudioCtxRef.current) {
+            try { inputAudioCtxRef.current.close(); } catch (e) { }
+            inputAudioCtxRef.current = null;
+        }
+
         // Don't fully reset state if we just want to restart connection, but here we do soft reset
         setIsConnected(false);
         setIsConnecting(false);
     }, []);
 
-    // Init Audio Context (Output only for now to reduce complexity)
-    const initAudioOutput = () => {
+    // Init Audio Contexts
+    const initAudio = () => {
         if (!outputAudioCtxRef.current) {
             const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
             outputAudioCtxRef.current = new AudioContextClass({ sampleRate: OUTPUT_SAMPLE_RATE });
+        }
+        if (!inputAudioCtxRef.current) {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            inputAudioCtxRef.current = new AudioContextClass({ sampleRate: INPUT_SAMPLE_RATE });
         }
         if (outputAudioCtxRef.current.state === 'suspended') {
             outputAudioCtxRef.current.resume();
         }
     };
+
+    // Visualizer Loop
+    useEffect(() => {
+        if (!isConnected || !visualizerRef.current || !analyserRef.current) return;
+
+        const canvas = visualizerRef.current;
+        const ctx = canvas.getContext('2d');
+        const analyser = analyserRef.current;
+
+        if (!ctx) return;
+
+        let animationId: number;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        const draw = () => {
+            animationId = requestAnimationFrame(draw);
+            analyser.getByteTimeDomainData(dataArray);
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; // Fade effect
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#00ffff'; // Cyan neon
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00ffff';
+
+            ctx.beginPath();
+
+            const sliceWidth = canvas.width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * canvas.height / 2;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+
+                x += sliceWidth;
+            }
+
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+        };
+
+        draw();
+
+        return () => cancelAnimationFrame(animationId);
+    }, [isConnected]);
 
     // Connection Logic
     const connectToGemini = async () => {
@@ -96,9 +161,9 @@ const UnifiedGame: React.FC = () => {
             console.log("Starting connection sequence...");
             setIsConnecting(true);
             setError(null);
-            setCommentary("Establishing Neural Link...");
+            setCommentary("Initializing Neural Link...");
 
-            initAudioOutput();
+            initAudio();
 
             // validation
             const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
@@ -106,9 +171,11 @@ const UnifiedGame: React.FC = () => {
                 throw new Error("Invalid API Key in environment");
             }
 
-            // Get Media Stream
+            setCommentary("Accessing Visual & Audio Sensors...");
+
+            // Get Media Stream (Audio + Video)
             const stream = await navigator.mediaDevices.getUserMedia({
-                audio: false, // Start simple: No audio input to prevent echo/feedback loops
+                audio: true,
                 video: { width: 320, height: 240 }
             });
 
@@ -118,23 +185,31 @@ const UnifiedGame: React.FC = () => {
             }
 
             // Init Client
+            setCommentary("Calibrating Tensor Cores...");
             const ai = new GoogleGenAI({ apiKey });
 
             // Connect
+            setCommentary("Establishing Uplink...");
             const session = await ai.live.connect({
                 model: 'models/gemini-2.0-flash-exp',
                 config: {
                     responseModalities: [Modality.AUDIO],
                     systemInstruction: {
                         parts: [{
-                            text: `You are a Rock Paper Scissors referee.
-user video is provided.
-When you see the user gesture or receive "Start Round", start the game.
-1. Say "Ready? Rock... Paper... Scissors... SHOOT!"
-2. Detect the user's hand at "SHOOT".
-3. Pick your move randomly.
-4. Call 'reportGameResult' tool with the winner.
-5. If no hand seen, declare DRAW.`
+                            text: `You are a Rock Paper Scissors referee and opponent.
+                            Video and Audio are provided.
+                            
+                            GAMEPLAY:
+                            1. Wait for "Start Round" or say "Ready? Rock... Paper... Scissors... SHOOT!".
+                            2. At "SHOOT", analyze the User's Move.
+                            3. Decide your Move (Rock/Paper/Scissors) to Win/Lose/Draw.
+                            4. Call 'reportGameResult'.
+                            
+                            INPUTS:
+                            - Primary: Visual hand gesture.
+                            - Secondary: Voice. If user SAYS "Rock", "Paper", or "Scissors", accept it as their move immediately. This is VOICE REDUNDANCY mode.
+                            
+                            If no move detected, declare DRAW.`
                         }]
                     },
                     tools: [{
@@ -160,10 +235,10 @@ When you see the user gesture or receive "Start Round", start the game.
                         setIsConnecting(false);
                         setIsConnected(true);
                         setCommentary("Link Stable. Waiting for signal.");
-                        startVideoStreaming(stream);
+                        startMediaStreaming(stream); // Updated function name
                     },
                     onmessage: async (message: LiveServerMessage) => {
-                        // Audio Handling
+                        // Audio Handling (Output)
                         try {
                             const data = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
                             if (data && outputAudioCtxRef.current && !isMuted) {
@@ -248,7 +323,43 @@ When you see the user gesture or receive "Start Round", start the game.
         }
     };
 
-    const startVideoStreaming = (stream: MediaStream) => {
+    const startMediaStreaming = (stream: MediaStream) => {
+        // Audio Streaming
+        if (inputAudioCtxRef.current) {
+            const source = inputAudioCtxRef.current.createMediaStreamSource(stream);
+            const processor = inputAudioCtxRef.current.createScriptProcessor(4096, 1, 1);
+            const analyser = inputAudioCtxRef.current.createAnalyser();
+
+            analyser.fftSize = 256;
+            source.connect(analyser); // For Visualizer
+            analyserRef.current = analyser;
+
+            source.connect(processor);
+            processor.connect(inputAudioCtxRef.current.destination);
+
+            processor.onaudioprocess = (e) => {
+                if (!sessionRef.current) return;
+                const inputData = e.inputBuffer.getChannelData(0);
+
+                // Downsample or Just convert to PCM 16
+                // Gemini 2.0 Flash Exp expects 16kHz PCM (mostly). 
+                // Assuming INPUT_SAMPLE_RATE is 16000.
+
+                const pcmData = new Int16Array(inputData.length);
+                for (let i = 0; i < inputData.length; i++) {
+                    // Clamp and convert
+                    const s = Math.max(-1, Math.min(1, inputData[i]));
+                    pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                }
+
+                const base64 = encode(new Uint8Array(pcmData.buffer));
+                sessionRef.current.sendRealtimeInput({
+                    media: { mimeType: 'audio/pcm;rate=16000', data: base64 }
+                });
+            };
+        }
+
+        // Video Streaming
         if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
 
         frameIntervalRef.current = window.setInterval(() => {
@@ -272,6 +383,35 @@ When you see the user gesture or receive "Start Round", start the game.
         if (sessionRef.current) {
             sessionRef.current.sendRealtimeInput({ text: "Start Round" });
             setCommentary("Starting...");
+        } else if (isConnected && !sessionRef.current) {
+            // Offline Mode
+            setCommentary("Simulating Round...");
+            setTimeout(() => {
+                const moves = ['rock', 'paper', 'scissors'];
+                const userMove = moves[Math.floor(Math.random() * 3)];
+                const aiMove = moves[Math.floor(Math.random() * 3)];
+                const winner = userMove === aiMove ? 'draw' :
+                    (userMove === 'rock' && aiMove === 'scissors') ||
+                        (userMove === 'paper' && aiMove === 'rock') ||
+                        (userMove === 'scissors' && aiMove === 'paper') ? 'user' : 'ai';
+
+                setGameState(prev => ({
+                    ...prev,
+                    userGesture: userMove,
+                    aiGesture: aiMove,
+                    winner: winner as any,
+                    status: 'result'
+                }));
+                setResultMessage(winner === 'user' ? "YOU WIN" : winner === 'ai' ? "YOU LOSE" : "DRAW");
+                if (winner === 'user') setPlayerScore(s => s + 1);
+                if (winner === 'ai') setAiScore(s => s + 1);
+
+                setTimeout(() => {
+                    setResultMessage(null);
+                    setGameState(prev => ({ ...prev, status: 'playing', userGesture: 'unknown', aiGesture: 'unknown' }));
+                    setRound(r => r + 1);
+                }, 3000);
+            }, 1000);
         }
     };
 
@@ -308,6 +448,21 @@ When you see the user gesture or receive "Start Round", start the game.
                         <div className="absolute top-40 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 px-4 py-1 rounded-full border border-cyan-500/30 backdrop-blur-md">
                             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                             <span className="text-cyan-400 font-mono text-xs tracking-[0.2em] uppercase">AI VISION FEED LIVE</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* VISUALIZER & VOICE BADGE */}
+                {isConnected && (
+                    <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 z-20">
+                        {/* Waveform */}
+                        <canvas ref={visualizerRef} width={300} height={100} className="w-64 h-24" />
+
+                        {/* Badge */}
+                        <div className="flex items-center gap-2 bg-cyan-900/40 px-4 py-1 rounded-full border border-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.4)]">
+                            <span className="text-cyan-400 font-mono text-xs font-bold uppercase tracking-widest animate-pulse">
+                                VOICE REDUNDANCY ACTIVE
+                            </span>
                         </div>
                     </div>
                 )}
@@ -412,7 +567,19 @@ When you see the user gesture or receive "Start Round", start the game.
                             RE-ESTABLISH LINK
                         </button>
                     )}
-                    <p className="text-[hsl(180,100%,50%)] font-mono text-center max-w-md">{commentary}</p>
+                    <p className="text-[hsl(180,100%,50%)] font-mono text-center max-w-md animate-pulse">{commentary}</p>
+                    {isConnecting && (
+                        <button
+                            onClick={() => {
+                                setIsConnecting(false);
+                                setIsConnected(true); // Fake it
+                                setCommentary("OFFLINE SIMULATION MODE");
+                            }}
+                            className="mt-4 text-xs text-white/30 hover:text-white hover:underline font-mono"
+                        >
+                            [BYPASS UPLINK]
+                        </button>
+                    )}
                 </div>
             )}
 
