@@ -70,24 +70,8 @@
     position: relative;
   }
   /* Scanline effect */
-  body::after {
-    content: " ";
-    display: block;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: repeating-linear-gradient(
-      0deg,
-      rgba(0, 0, 0, 0.2),
-      rgba(0, 0, 0, 0.2) 1px,
-      transparent 1px,
-      transparent 3px
-    );
-    pointer-events: none;
-    z-index: 10000;
-  }
+  /* Scanline effect REMOVED for clarity */
+
 }
 
 @layer utilities {

@@ -233,14 +233,23 @@ export const useReactiveLoop = (
                     const ringExt = isExtendedConfig(16, 14);
                     const pinkyExt = isExtendedConfig(20, 18);
 
-                    const extendedCount = [indexExt, middleExt, ringExt, pinkyExt].filter(Boolean).length;
+                    // Count extended fingers (excluding thumb for core RPS logic)
+                    const fingersExtended = [indexExt, middleExt, ringExt, pinkyExt].filter(Boolean).length;
 
-                    if (extendedCount >= 3) {
-                      gesture = "paper";
-                    } else if (extendedCount === 2) {
+                    // SCISSORS: Strictly Index & Middle UP. Ring & Pinky DOWN.
+                    // We IGNORE the Thumb. Whether it's tucked or out, it's still Scissors.
+                    if (indexExt && middleExt && !ringExt && !pinkyExt) {
                       gesture = "scissors";
-                    } else {
+                    } else if (fingersExtended >= 3) {
+                      // 3+ fingers (excluding thumb) is definitely Paper
+                      gesture = "paper";
+                    } else if (fingersExtended === 0) {
+                      // 0 fingers (excluding thumb) is definitely Rock
                       gesture = "rock";
+                    } else {
+                      // Ambiguous state (e.g. 1 finger) - Do NOT guess.
+                      // Better to do nothing than to incorrectly guess Rock.
+                      gesture = "none";
                     }
 
                     confidence = 0.95;

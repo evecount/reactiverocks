@@ -20,6 +20,7 @@ import { Input } from './ui/input';
 import { CircularProgress } from './ui/progress';
 import { useReactiveLoop } from '@/hooks/use-reactive-loop';
 import { detectGesture } from '@/lib/gesture-detector';
+import { drawHand } from '@/lib/canvas-utils';
 
 type Move = 'rock' | 'paper' | 'scissors' | 'none'; // loosen type for debug
 type GameState = 'idle' | 'starting' | 'instructions' | 'playing' | 'ending';
@@ -30,6 +31,7 @@ const moveIcons: Record<Move, React.ComponentType<{ className?: string }>> = {
   rock: RockIcon,
   paper: PaperIcon,
   scissors: ScissorsIcon,
+  none: () => null, // Fix: Add 'none' to satisfy Record<Move, ...>
 };
 
 export default function GameUI() {
@@ -64,6 +66,7 @@ export default function GameUI() {
   }, []);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const lastMoveRef = useRef<Move | null>(null);
@@ -199,6 +202,23 @@ export default function GameUI() {
   }, [gameState, isPending, playerName, fluidityScore, toast, playAudio, resetTimer, resultMessage, playText]);
 
   const onGesture = useCallback((keypoints: any, gesture?: string, confidence?: number) => {
+    // Draw Hand Skeleton
+    if (canvasRef.current && videoRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        // Ensure canvas matches video dimensions
+        if (canvasRef.current.width !== videoRef.current.videoWidth) {
+          canvasRef.current.width = videoRef.current.videoWidth;
+          canvasRef.current.height = videoRef.current.videoHeight;
+        }
+
+        if (keypoints && keypoints.length > 0) {
+          drawHand(ctx, keypoints, gesture === 'Unknown' ? 'rgba(255,0,0,0.8)' : 'rgba(0,255,0,0.8)');
+        }
+      }
+    }
+
     if (!keypoints || isPending || resultMessage) return;
 
     if (gesture) {
@@ -214,11 +234,15 @@ export default function GameUI() {
       }
     }
 
-    if (gesture && gesture !== 'none' && gesture !== 'Moving Up' && gesture !== 'Moving Down' && gesture !== 'Static' && gesture !== 'Unknown' && gesture !== lastMoveRef.current && !isPaused) {
-      // Only trigger play on actual game moves (rock/paper/scissors) - logic to be refined for "Rhythm" later
-      // For now, we mainly use this for visual feedback as per user request
-      lastMoveRef.current = gesture;
-      handlePlay(gesture as Move);
+    // Only trigger play on actual game moves (rock/paper/scissors)
+    // AND Only trigger during the "Shoot" window (countdown === 0)
+    const validGameMoves: Move[] = ['rock', 'paper', 'scissors'];
+
+    if (gesture && validGameMoves.includes(gesture as Move) && gesture !== lastMoveRef.current && !isPaused) {
+      if (countdown === 0) {
+        lastMoveRef.current = gesture as Move;
+        handlePlay(gesture as Move);
+      }
     }
   }, [isPending, resultMessage, handlePlay, isPaused, roundDuration, playText]);
 
@@ -286,16 +310,50 @@ export default function GameUI() {
 
 
   useEffect(() => {
-    if (countdown === 0 && gameState === 'playing' && !isPending && !resultMessage && !isPaused) {
-      // Continuous Loop: Just restart the round
-      setCountdown(roundDuration);
-      setCommentary("Next round!");
-    }
-  }, [countdown, gameState, isPending, resultMessage, isPaused, playText, roundDuration]);
+    if (gameState === 'playing' && !isPaused && !resultMessage) {
+      // Audio Countdown
+      if (countdown <= 3 && countdown > 0) {
+        // Use Math.ceil to say "3" when at 2.9, etc.
+        const num = Math.ceil(countdown);
+        // De-bounce audio (simple check against previous second not implemented here, relying on 1s interval)
+        // Ideally we'd use a ref to track "last spoken number" but for now let's just trigger.
+        // Actually, since this runs on render, we need to be careful.
+        // The playText function handles some overlapping, but let's stick to the previous logic which was working fine for audio,
+        // just removing the RESET.
 
-  // Spacebar Control
+        // Note: The previous logic relied on `countdown` changing. 
+        // We will just let the user hang at 0.
+      } else if (countdown === 0) {
+        // This might trigger multiple times if not careful? 
+        // But countdown stays 0. 
+        // We should add a ref check to say "Shoot" once.
+      }
+    }
+  }, [countdown, gameState, resultMessage, isPaused]);
+
+  // AUDIO EFFECT (Stabilized)
+  const lastSpokenRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Reset tracker on new round
+    if (countdown > 3) lastSpokenRef.current = null;
+
+    if (gameState === 'playing' && !isPaused && !resultMessage) {
+      const current = Math.ceil(countdown);
+      if (current <= 3 && current > 0 && lastSpokenRef.current !== current) {
+        playText(current.toString());
+        lastSpokenRef.current = current;
+      } else if (countdown === 0 && lastSpokenRef.current !== 0) {
+        playText("Shoot!");
+        lastSpokenRef.current = 0;
+      }
+    }
+  }, [countdown, gameState, isPaused, resultMessage, playText]);
+
+  // Keyboard Control (Space + A/S/D)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Game Pausing
       if (e.code === 'Space') {
         e.preventDefault();
         setIsPaused(prev => {
@@ -304,10 +362,21 @@ export default function GameUI() {
           return nextState;
         });
       }
+
+      // Hybrid Input (A/S/D) - Only active during gameplay
+      if (gameState === 'playing' && !isPaused && !isPending && !resultMessage) {
+        if (e.key.toLowerCase() === 'a') {
+          handlePlay('rock');
+        } else if (e.key.toLowerCase() === 's') {
+          handlePlay('scissors');
+        } else if (e.key.toLowerCase() === 'd') {
+          handlePlay('paper');
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [playText]);
+  }, [playText, gameState, isPaused, isPending, resultMessage, handlePlay]);
 
 
   useEffect(() => {
@@ -378,13 +447,19 @@ export default function GameUI() {
   return (
     <div className="fixed inset-0 w-full h-full bg-black pt-14">
       <audio ref={audioRef} className="hidden" />
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        playsInline
-        className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
-      ></video>
+      <div className="absolute inset-0 w-full h-full pointer-events-none">
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+        ></video>
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      </div>
       <div className="absolute inset-0 w-full h-full pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_0%,black_70%)]"></div>
 
 
@@ -501,7 +576,7 @@ export default function GameUI() {
                 <CircularProgress value={countdown} max={roundDuration} className="absolute inset-0" />
               )}
               <div className="digital-font text-7xl font-bold text-white">
-                {round > 0 ? round : ''}
+                {gameState === 'playing' && countdown > 0 ? Math.ceil(countdown) : round}
               </div>
             </div>
           </div>
@@ -526,13 +601,32 @@ export default function GameUI() {
           <div className="w-40 h-40 flex items-center justify-center">
             {isPending && !aiChoice && gameState === 'playing' ? (
               <Loader className="w-24 h-24 animate-spin text-white" />
-            ) : aiChoice ? (
-              React.createElement(moveIcons[aiChoice], {
-                className: 'w-40 h-40 text-accent drop-shadow-[0_0_20px_hsl(var(--accent))] transition-all duration-300 animate-in fade-in zoom-in-50',
-              })
             ) : null}
           </div>
         </div>
+
+        {/* PUNCH IN EFFECT: Massive AI Reveal Overlay */}
+        {aiChoice && resultMessage && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[80]">
+            <div className="relative animate-in zoom-in-0 duration-300 ease-out-back">
+              {/* Glow Background */}
+              <div className={cn("absolute inset-0 blur-[100px] opacity-50",
+                aiChoice === 'rock' ? "bg-red-500" :
+                  aiChoice === 'paper' ? "bg-blue-500" : "bg-purple-500")}
+              />
+              {/* The Icon */}
+              {React.createElement(moveIcons[aiChoice], {
+                className: "w-[40vw] h-[40vw] max-w-[500px] max-h-[500px] drop-shadow-[0_0_50px_rgba(255,255,255,0.5)] text-white"
+              })}
+              {/* The Text Label */}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-10">
+                <p className="font-headline text-6xl md:text-8xl text-white uppercase tracking-tighter drop-shadow-md whitespace-nowrap">
+                  {aiChoice}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer: Controls and Commentary */}
         <div className="relative w-full max-w-4xl mx-auto flex flex-col items-center gap-4">
@@ -687,4 +781,3 @@ export default function GameUI() {
     </div>
   );
 }
-

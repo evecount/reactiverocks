@@ -1,7 +1,9 @@
-import GameClientLoader from "@/components/game-client-loader";
+import UnifiedGame from '@/components/unified-game';
 
 export default function Home() {
   return (
-    <GameClientLoader />
+    <main className="min-h-screen bg-background text-foreground">
+      <UnifiedGame />
+    </main>
   );
 }
