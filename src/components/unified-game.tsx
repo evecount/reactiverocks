@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 // Constants
 const INPUT_SAMPLE_RATE = 16000;
 const OUTPUT_SAMPLE_RATE = 24000;
-const FRAME_RATE = 2; // frames per second
+const FRAME_RATE = 10; // frames per second
 const JPEG_QUALITY = 0.6;
 
 const UnifiedGame: React.FC = () => {
@@ -265,7 +265,7 @@ When you see the user gesture or receive "Start Round", start the game.
                     media: { mimeType: 'image/jpeg', data: base64 }
                 });
             }
-        }, 500); // 2 FPS is plenty
+        }, 100); // 10 FPS for better responsiveness
     };
 
     const startRound = () => {
