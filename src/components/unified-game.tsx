@@ -6,6 +6,8 @@ import { Camera, Mic, MicOff, Square, User, Bot, RefreshCcw } from 'lucide-react
 import { GameState } from '@/types/game';
 import { encode, decode, decodeAudioData } from '@/lib/audio-utils';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 // Constants
 const INPUT_SAMPLE_RATE = 16000;
@@ -27,6 +29,13 @@ const UnifiedGame: React.FC = () => {
     const [isConnected, setIsConnected] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Permissions State
+    const [hasPermissions, setHasPermissions] = useState(false);
+    const [permissionConfig, setPermissionConfig] = useState({
+        camera: true,
+        microphone: true,
+    });
 
     // UI Specific State
     const [playerScore, setPlayerScore] = useState(0);
@@ -79,6 +88,21 @@ const UnifiedGame: React.FC = () => {
         setGameState(prev => ({ ...prev, status: 'idle' }));
         setCommentary("Link Terminated.");
     }, []);
+
+    const requestPermissions = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: permissionConfig.microphone,
+                video: permissionConfig.camera
+            });
+            // Stop immediately, we just wanted to ask permissions
+            stream.getTracks().forEach(track => track.stop());
+            setHasPermissions(true);
+        } catch (err: any) {
+            console.error("Permission Error:", err);
+            setError("Permissions denied. Reload and allow access.");
+        }
+    };
 
     const connectToGemini = async () => {
         try {
@@ -270,9 +294,67 @@ const UnifiedGame: React.FC = () => {
             </div>
             <div className="absolute inset-0 w-full h-full pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_0%,black_85%)]"></div>
 
-            {/* Error / Init */}
-            {!hasName && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-50 backdrop-blur-sm animate-in fade-in duration-500">
+            {/* Error Display */}
+            {error && (
+                <div className="absolute top-4 left-0 right-0 z-50 flex justify-center pointer-events-none">
+                    <div className="bg-destructive/80 text-white px-4 py-2 rounded-full border border-red-500 font-mono text-sm animate-in fade-in slide-in-from-top-4">
+                        {error}
+                    </div>
+                </div>
+            )}
+
+            {/* Permissions Modal */}
+            {!hasPermissions && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/95 z-50 backdrop-blur-md animate-in fade-in duration-500">
+                    <div className="max-w-md w-full mx-4 border border-zinc-800 bg-zinc-950 rounded-xl p-8 flex flex-col gap-8 shadow-2xl">
+                        <div className="text-center space-y-2">
+                            <h2 className="text-xl font-medium text-white">Allow this app to request access to:</h2>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between px-4">
+                                <div className="flex items-center gap-3">
+                                    <Camera className="w-6 h-6 text-zinc-400" />
+                                    <Label htmlFor="camera-toggle" className="text-lg text-zinc-200">Camera</Label>
+                                </div>
+                                <Switch
+                                    id="camera-toggle"
+                                    checked={permissionConfig.camera}
+                                    onCheckedChange={(c) => setPermissionConfig(prev => ({ ...prev, camera: c }))}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between px-4">
+                                <div className="flex items-center gap-3">
+                                    <Mic className="w-6 h-6 text-zinc-400" />
+                                    <Label htmlFor="mic-toggle" className="text-lg text-zinc-200">Microphone</Label>
+                                </div>
+                                <Switch
+                                    id="mic-toggle"
+                                    checked={permissionConfig.microphone}
+                                    onCheckedChange={(c) => setPermissionConfig(prev => ({ ...prev, microphone: c }))}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="text-center">
+                            <button
+                                className="w-full py-3 bg-[hsl(240,6%,10%)] text-white hover:bg-zinc-800 transition-colors rounded-full font-medium"
+                                onClick={requestPermissions}
+                            >
+                                Allow
+                            </button>
+                            <p className="mt-4 text-xs text-zinc-500">
+                                The app may not work properly without these permissions.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Player Name / Init */}
+            {hasPermissions && !hasName && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-40 backdrop-blur-sm animate-in fade-in duration-500">
                     <div className="max-w-2xl w-full mx-4 border-2 border-[hsl(180,100%,50%)] shadow-[0_0_50px_rgba(0,255,255,0.2)] bg-black/80 rounded-xl p-8 flex flex-col items-center gap-8">
                         <div className="text-center space-y-2">
                             <h2 className="text-4xl md:text-5xl digital-font text-white neon-glow">COMBAT PROTOCOLS</h2>
@@ -297,7 +379,7 @@ const UnifiedGame: React.FC = () => {
             )}
 
             {/* Connecting State & Reconnect */}
-            {hasName && !isConnected && (
+            {hasPermissions && hasName && !isConnected && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center flex-col gap-4 z-20">
                     {isConnecting ? (
                         <div className="w-16 h-16 border-4 border-[hsl(180,100%,50%)] border-t-transparent rounded-full animate-spin" />
