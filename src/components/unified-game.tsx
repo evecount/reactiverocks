@@ -305,7 +305,7 @@ When you see the user gesture or receive "Start Round", start the game.
                         <div className="absolute top-0 left-0 w-full h-1 bg-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.8)] animate-[scan_3s_ease-in-out_infinite]" />
 
                         {/* Vision Label */}
-                        <div className="absolute top-24 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 px-4 py-1 rounded-full border border-cyan-500/30 backdrop-blur-md">
+                        <div className="absolute bottom-40 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 px-4 py-1 rounded-full border border-cyan-500/30 backdrop-blur-md">
                             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                             <span className="text-cyan-400 font-mono text-xs tracking-[0.2em] uppercase">AI VISION FEED LIVE</span>
                         </div>
@@ -420,7 +420,7 @@ When you see the user gesture or receive "Start Round", start the game.
             {isConnected && (
                 <div className="absolute inset-0 pt-24 md:pt-32 flex flex-col justify-between p-4 md:p-8">
                     {/* Status Bar (Ported from LiveGameUI) */}
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-6 bg-black/60 px-6 py-2 rounded-full backdrop-blur-md border border-white/10 shadow-2xl">
+                    <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-6 bg-black/60 px-6 py-2 rounded-full backdrop-blur-md border border-white/10 shadow-2xl">
                         <div className="flex items-center gap-2">
                             <div className={cn("w-2 h-2 rounded-full", isConnected ? "bg-green-500 animate-pulse" : "bg-red-500")} />
                             <span className="text-xs font-mono uppercase text-white/50">{isConnected ? "ONLINE" : "OFFLINE"}</span>
