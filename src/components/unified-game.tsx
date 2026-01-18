@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, Modality, Type, LiveServerMessage } from '@google/genai';
-import { Camera, Mic, MicOff, Square, User, Bot } from 'lucide-react';
+import { Camera, Mic, MicOff, Square, User, Bot, RefreshCcw } from 'lucide-react';
 import { GameState } from '@/types/game';
 import { encode, decode, decodeAudioData } from '@/lib/audio-utils';
 import { cn } from '@/lib/utils';
@@ -25,6 +25,7 @@ const UnifiedGame: React.FC = () => {
     });
 
     const [isConnected, setIsConnected] = useState(false);
+    const [isConnecting, setIsConnecting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // UI Specific State
@@ -74,12 +75,14 @@ const UnifiedGame: React.FC = () => {
         sourcesRef.current.forEach(source => source.stop());
         sourcesRef.current.clear();
         setIsConnected(false);
+        setIsConnecting(false);
         setGameState(prev => ({ ...prev, status: 'idle' }));
-        setCommentary("Link Lost. Reconnecting...");
+        setCommentary("Link Terminated.");
     }, []);
 
     const connectToGemini = async () => {
         try {
+            setIsConnecting(true);
             initAudio();
             setError(null);
             setCommentary("Connecting...");
@@ -134,6 +137,7 @@ const UnifiedGame: React.FC = () => {
                 },
                 callbacks: {
                     onopen: () => {
+                        setIsConnecting(false);
                         setIsConnected(true);
                         setGameState(prev => ({ ...prev, status: 'playing' }));
                         setCommentary("Neural Link Established.");
@@ -209,6 +213,7 @@ const UnifiedGame: React.FC = () => {
             sessionRef.current = await sessionPromise;
         } catch (err: any) {
             console.error("Init Error:", err);
+            setIsConnecting(false);
             setError(err.message || "Failed to access camera or microphone via API Key.");
             setCommentary("System Error: Connection Failed");
         }
@@ -291,11 +296,21 @@ const UnifiedGame: React.FC = () => {
                 </div>
             )}
 
-            {/* Connecting State */}
+            {/* Connecting State & Reconnect */}
             {hasName && !isConnected && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center flex-col gap-4 z-20">
-                    <div className="w-16 h-16 border-4 border-[hsl(180,100%,50%)] border-t-transparent rounded-full animate-spin" />
-                    <p className="text-[hsl(180,100%,50%)] font-mono">{commentary}</p>
+                    {isConnecting ? (
+                        <div className="w-16 h-16 border-4 border-[hsl(180,100%,50%)] border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                        <button
+                            onClick={connectToGemini}
+                            className="flex items-center gap-2 px-8 py-4 bg-[hsl(180,100%,50%)] text-black font-mono font-bold rounded-lg hover:scale-105 transition-all shadow-[0_0_20px_rgba(0,255,255,0.4)]"
+                        >
+                            <RefreshCcw className="w-6 h-6" />
+                            RE-ESTABLISH LINK
+                        </button>
+                    )}
+                    <p className="text-[hsl(180,100%,50%)] font-mono text-center max-w-md">{commentary}</p>
                 </div>
             )}
 
