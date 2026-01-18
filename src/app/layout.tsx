@@ -17,7 +17,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/gem.svg" type="image/svg+xml" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -29,9 +29,9 @@ export default function RootLayout({
         <main>{children}</main>
         <Toaster />
         <footer className="fixed bottom-0 w-full p-2 flex justify-center items-center gap-4 text-xs text-foreground/50">
-            <Link href="/about" className="hover:text-primary transition-colors">About</Link>
-            <Link href="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</Link>
-            <Link href="/terms-of-use" className="hover:text-primary transition-colors">Terms of Use</Link>
+          <Link href="/about" className="hover:text-primary transition-colors">About</Link>
+          <Link href="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</Link>
+          <Link href="/terms-of-use" className="hover:text-primary transition-colors">Terms of Use</Link>
         </footer>
       </body>
     </html>

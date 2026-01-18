@@ -5,31 +5,36 @@
 @layer base {
   :root {
     /* 90s Cyber-Arcade Palette */
-    --background: 240 64% 8%; /* Deep Navy/Black */
+    --background: 240 64% 8%;
+    /* Deep Navy/Black */
     --foreground: 0 0% 98%;
 
-    --card: 240 55% 15% / 0.6; /* Translucent for Glassmorphism */
+    --card: 240 55% 15% / 0.6;
+    /* Translucent for Glassmorphism */
     --card-foreground: 0 0% 98%;
 
     --popover: 240 64% 8%;
     --popover-foreground: 0 0% 98%;
 
     /* Primary Neon Colors */
-    --primary: 180 100% 50%; /* Cyber Blue #00FFFF */
+    --primary: 180 100% 50%;
+    /* Cyber Blue #00FFFF */
     --primary-foreground: 180 100% 10%;
 
-    --secondary: 337 100% 70%; /* Hot Pink #FF69B4 */
+    --secondary: 337 100% 70%;
+    /* Hot Pink #FF69B4 */
     --secondary-foreground: 0 0% 98%;
 
     --muted: 240 50% 25%;
     --muted-foreground: 0 0% 63.9%;
 
-    --accent: 271 83% 53%; /* Electric Purple #A020F0 */
+    --accent: 271 83% 53%;
+    /* Electric Purple #A020F0 */
     --accent-foreground: 0 0% 98%;
-    
+
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    
+
     /* Border & Ring */
     --border: 180 100% 50% / 0.3;
     --input: 240 50% 25%;
@@ -65,10 +70,12 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
     position: relative;
   }
+
   /* Scanline effect */
   /* Scanline effect REMOVED for clarity */
 
@@ -83,13 +90,13 @@
     border-width: 2px;
     border-color: hsl(var(--primary) / 0.5);
     box-shadow: 0 0 5px hsl(var(--primary)),
-                0 0 10px hsl(var(--primary)),
-                0 0 20px hsl(var(--secondary)),
-                inset 0 0 5px hsl(var(--primary)),
-                inset 0 0 10px hsl(var(--secondary));
+      0 0 10px hsl(var(--primary)),
+      0 0 20px hsl(var(--secondary)),
+      inset 0 0 5px hsl(var(--primary)),
+      inset 0 0 10px hsl(var(--secondary));
     animation: pulse-glow 2s infinite ease-in-out;
   }
-  
+
   .digital-font {
     font-family: 'Source Code Pro', monospace;
     font-weight: 600;
@@ -97,45 +104,53 @@
 
   .animated-gradient-text {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(
-      90deg,
-      hsl(var(--primary)),
-      hsl(var(--secondary)),
-      hsl(var(--accent)),
-      hsl(var(--primary))
-    );
+    background-image: linear-gradient(90deg,
+        hsl(var(--primary)),
+        hsl(var(--secondary)),
+        hsl(var(--accent)),
+        hsl(var(--primary)));
     background-size: 200% auto;
     animation: gradient-scroll 5s linear infinite;
   }
 }
 
 @keyframes flicker {
-  0% { opacity: 0.95; }
-  50% { opacity: 1; }
-  100% { opacity: 0.95; }
+  0% {
+    opacity: 0.95;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.95;
+  }
 }
 
 @keyframes pulse-glow {
   0% {
     box-shadow: 0 0 5px hsl(var(--primary)),
-                0 0 10px hsl(var(--primary)),
-                0 0 20px hsl(var(--secondary)),
-                inset 0 0 5px hsl(var(--primary)),
-                inset 0 0 10px hsl(var(--secondary));
+      0 0 10px hsl(var(--primary)),
+      0 0 20px hsl(var(--secondary)),
+      inset 0 0 5px hsl(var(--primary)),
+      inset 0 0 10px hsl(var(--secondary));
   }
+
   50% {
-     box-shadow: 0 0 10px hsl(var(--secondary)),
-                0 0 20px hsl(var(--secondary)),
-                0 0 40px hsl(var(--primary)),
-                inset 0 0 10px hsl(var(--secondary)),
-                inset 0 0 20px hsl(var(--primary));
+    box-shadow: 0 0 10px hsl(var(--secondary)),
+      0 0 20px hsl(var(--secondary)),
+      0 0 40px hsl(var(--primary)),
+      inset 0 0 10px hsl(var(--secondary)),
+      inset 0 0 20px hsl(var(--primary));
   }
+
   100% {
     box-shadow: 0 0 5px hsl(var(--primary)),
-                0 0 10px hsl(var(--primary)),
-                0 0 20px hsl(var(--secondary)),
-                inset 0 0 5px hsl(var(--primary)),
-                inset 0 0 10px hsl(var(--secondary));
+      0 0 10px hsl(var(--primary)),
+      0 0 20px hsl(var(--secondary)),
+      inset 0 0 5px hsl(var(--primary)),
+      inset 0 0 10px hsl(var(--secondary));
   }
 }
 
@@ -143,10 +158,29 @@
   0% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
   }
+
   100% {
     background-position: 0% 50%;
+  }
+}
+
+@keyframes scan {
+  0% {
+    top: 0%;
+    opacity: 0.5;
+  }
+
+  50% {
+    top: 95%;
+    opacity: 1;
+  }
+
+  100% {
+    top: 0%;
+    opacity: 0.5;
   }
 }
