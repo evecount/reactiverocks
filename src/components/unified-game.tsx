@@ -532,15 +532,12 @@ When you see the user gesture or receive "Start Round", start the game.
                                 {isMuted ? <MicOff /> : <Mic />}
                             </button>
 
-                            {/* Visual Start Button positioned centrally in actions if desired, or relying on the Round Indicator */}
+                            {/* Visual Start Button - Always visible when connected so user can start whenever */}
                             <button
                                 onClick={startRound}
-                                className={cn("px-8 py-4 bg-[hsl(180,100%,50%)] text-black font-mono font-bold rounded-lg hover:scale-105 transition-all shadow-[0_0_20px_rgba(0,255,255,0.4)] flex items-center gap-2",
-                                    gameState.status !== 'playing' && "opacity-50 cursor-not-allowed hidden"
-                                )}
-                                disabled={gameState.status !== 'playing'}
+                                className="px-8 py-4 bg-[hsl(180,100%,50%)] text-black font-mono font-bold rounded-lg hover:scale-105 transition-all shadow-[0_0_20px_rgba(0,255,255,0.4)] flex items-center gap-2"
                             >
-                                <Play className="w-5 h-5" /> START ROUND
+                                <Play className="w-5 h-5" /> PLAY ROUND
                             </button>
 
                             <button onClick={stopAllMedia} className="p-4 bg-red-900/50 border-2 border-red-500 text-white rounded-full hover:bg-red-800">
