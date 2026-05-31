@@ -25,6 +25,9 @@ const UnifiedGame: React.FC = () => {
         status: 'idle',
     });
 
+    const [inputMode, setInputMode] = useState<'locked' | 'open'>('locked');
+    const [countdown, setCountdown] = useState<number | null>(null);
+
     const [isConnected, setIsConnected] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -42,7 +45,9 @@ const UnifiedGame: React.FC = () => {
     const [isMuted, setIsMuted] = useState(false);
     const [commentary, setCommentary] = useState("Initializing Protocol...");
     const [resultMessage, setResultMessage] = useState<string | null>(null);
+
     const [showHelp, setShowHelp] = useState(false);
+    const [audioReady, setAudioReady] = useState(false);
 
     // Refs
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -50,7 +55,9 @@ const UnifiedGame: React.FC = () => {
     const inputAudioCtxRef = useRef<AudioContext | null>(null);
     const outputAudioCtxRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
+    const aiAnalyserRef = useRef<AnalyserNode | null>(null);
     const visualizerRef = useRef<HTMLCanvasElement>(null);
+    const aiVisualizerRef = useRef<HTMLCanvasElement>(null);
     const sessionRef = useRef<any>(null);
     const nextStartTimeRef = useRef<number>(0);
     const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
@@ -80,9 +87,15 @@ const UnifiedGame: React.FC = () => {
             inputAudioCtxRef.current = null;
         }
 
+        if (outputAudioCtxRef.current) {
+            try { outputAudioCtxRef.current.close(); } catch (e) { }
+            outputAudioCtxRef.current = null;
+        }
+
         // Don't fully reset state if we just want to restart connection, but here we do soft reset
         setIsConnected(false);
         setIsConnecting(false);
+        setAudioReady(false);
     }, []);
 
     // Init Audio Contexts
@@ -100,58 +113,83 @@ const UnifiedGame: React.FC = () => {
         }
     };
 
-    // Visualizer Loop
+    // Dual Visualizer Loop
     useEffect(() => {
-        if (!isConnected || !visualizerRef.current || !analyserRef.current) return;
-
-        const canvas = visualizerRef.current;
-        const ctx = canvas.getContext('2d');
-        const analyser = analyserRef.current;
-
-        if (!ctx) return;
+        if (!isConnected) return;
 
         let animationId: number;
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
 
         const draw = () => {
             animationId = requestAnimationFrame(draw);
-            analyser.getByteTimeDomainData(dataArray);
 
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; // Fade effect
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // 1. Human Visualizer (Blue - Left)
+            if (visualizerRef.current && analyserRef.current) {
+                const canvas = visualizerRef.current;
+                const ctx = canvas.getContext('2d');
+                const analyser = analyserRef.current;
 
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#00ffff'; // Cyan neon
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#00ffff';
+                if (ctx) {
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+                    analyser.getByteFrequencyData(dataArray);
 
-            ctx.beginPath();
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            const sliceWidth = canvas.width * 1.0 / bufferLength;
-            let x = 0;
+                    const barWidth = (canvas.width / bufferLength) * 2.5;
+                    let barHeight;
+                    let x = 0;
 
-            for (let i = 0; i < bufferLength; i++) {
-                const v = dataArray[i] / 128.0;
-                const y = v * canvas.height / 2;
-
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
+                    for (let i = 0; i < bufferLength; i++) {
+                        barHeight = dataArray[i] / 2;
+                        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                        gradient.addColorStop(0, '#00ffff'); // Cyan
+                        gradient.addColorStop(1, '#0000ff'); // Blue
+                        ctx.fillStyle = gradient;
+                        ctx.beginPath();
+                        ctx.roundRect(x, canvas.height - barHeight, barWidth, barHeight, [5, 5, 0, 0]);
+                        ctx.fill();
+                        x += barWidth + 2;
+                    }
                 }
-
-                x += sliceWidth;
             }
 
-            ctx.lineTo(canvas.width, canvas.height / 2);
-            ctx.stroke();
+            // 2. AI Visualizer (Green - Right)
+            if (aiVisualizerRef.current && aiAnalyserRef.current) {
+                const canvas = aiVisualizerRef.current;
+                const ctx = canvas.getContext('2d');
+                const analyser = aiAnalyserRef.current;
+
+                if (ctx) {
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+                    analyser.getByteFrequencyData(dataArray);
+
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    const barWidth = (canvas.width / bufferLength) * 2.5;
+                    let barHeight;
+                    // Draw from right to left or standard? Let's do standard but mirrored layout in CSS? 
+                    // Keeping standard drawing left-to-right for simplicity.
+                    let x = 0;
+
+                    for (let i = 0; i < bufferLength; i++) {
+                        barHeight = dataArray[i] / 2;
+                        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                        gradient.addColorStop(0, '#00ff00'); // Lime
+                        gradient.addColorStop(1, '#006400'); // Dark Green
+                        ctx.fillStyle = gradient;
+                        ctx.beginPath();
+                        ctx.roundRect(x, canvas.height - barHeight, barWidth, barHeight, [5, 5, 0, 0]);
+                        ctx.fill();
+                        x += barWidth + 2;
+                    }
+                }
+            }
         };
 
         draw();
-
         return () => cancelAnimationFrame(animationId);
-    }, [isConnected]);
+    }, [isConnected, audioReady]);
 
     // Connection Logic
     const connectToGemini = async () => {
@@ -176,7 +214,7 @@ const UnifiedGame: React.FC = () => {
             // Get Media Stream (Audio + Video)
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: true,
-                video: { width: 320, height: 240 }
+                video: { width: { ideal: 1280 }, height: { ideal: 720 } }
             });
 
             streamRef.current = stream;
@@ -207,13 +245,19 @@ const UnifiedGame: React.FC = () => {
                             
                             INPUTS:
                             - Primary: Visual hand gesture.
+
                             - Secondary: Voice. If user SAYS "Rock", "Paper", or "Scissors", accept it as their move immediately. This is VOICE REDUNDANCY mode.
+                            - Tertiary: Text Input. If you receive "User chose [move]", treat it as an authoritative user move override.
                             
                             If no move detected, declare DRAW.`
                         }]
                     },
                     tools: [{
                         functionDeclarations: [{
+                            name: 'triggerCountdown',
+                            description: 'Trigger the 3-second countdown before the shoot.',
+                            parameters: { type: Type.OBJECT, properties: {} }
+                        }, {
                             name: 'reportGameResult',
                             description: 'Report the result of the round',
                             parameters: {
@@ -243,6 +287,7 @@ const UnifiedGame: React.FC = () => {
                             const data = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
                             if (data && outputAudioCtxRef.current && !isMuted) {
                                 const ctx = outputAudioCtxRef.current;
+                                if (ctx.state === 'suspended') await ctx.resume();
                                 const buffer = await decodeAudioData(decode(data), ctx, OUTPUT_SAMPLE_RATE, 1);
 
                                 // Simple queueing
@@ -251,7 +296,16 @@ const UnifiedGame: React.FC = () => {
 
                                 const source = ctx.createBufferSource();
                                 source.buffer = buffer;
-                                source.connect(ctx.destination);
+
+                                // Route to AI Analyser
+                                if (!aiAnalyserRef.current) {
+                                    const analyser = ctx.createAnalyser();
+                                    analyser.fftSize = 64;
+                                    aiAnalyserRef.current = analyser;
+                                }
+                                source.connect(aiAnalyserRef.current);
+                                aiAnalyserRef.current.connect(ctx.destination);
+
                                 source.start(start);
 
                                 nextStartTimeRef.current = start + buffer.duration;
@@ -263,7 +317,29 @@ const UnifiedGame: React.FC = () => {
                         }
 
                         // Tool Handling
-                        if (message.toolCall) {
+                        if (message.toolCall && message.toolCall.functionCalls) {
+                            const countdownFc = message.toolCall.functionCalls.find(f => f.name === 'triggerCountdown');
+                            if (countdownFc) {
+                                setCountdown(3);
+                                setInputMode('locked');
+                                setTimeout(() => setCountdown(2), 1000);
+                                setTimeout(() => setCountdown(1), 2000);
+                                setTimeout(() => {
+                                    setCountdown(null);
+                                    setInputMode('open'); // OPEN INPUT WINDOW
+                                    // Close it after 1.5s
+                                    setTimeout(() => setInputMode('locked'), 1500);
+                                }, 3000);
+
+                                session.sendToolResponse({
+                                    functionResponses: {
+                                        name: countdownFc.name,
+                                        id: countdownFc.id,
+                                        response: { result: "ok" }
+                                    }
+                                });
+                            }
+
                             const fc = message.toolCall.functionCalls.find(f => f.name === 'reportGameResult');
                             if (fc) {
                                 const args = fc.args as any;
@@ -330,12 +406,13 @@ const UnifiedGame: React.FC = () => {
             const processor = inputAudioCtxRef.current.createScriptProcessor(4096, 1, 1);
             const analyser = inputAudioCtxRef.current.createAnalyser();
 
-            analyser.fftSize = 256;
+            analyser.fftSize = 64; // Fewer bins for chunky bars
             source.connect(analyser); // For Visualizer
             analyserRef.current = analyser;
+            setAudioReady(true);
 
             source.connect(processor);
-            processor.connect(inputAudioCtxRef.current.destination);
+            // processor.connect(inputAudioCtxRef.current.destination); // REMOVED to prevent self-echo. The processing still happens via onaudioprocess.
 
             processor.onaudioprocess = (e) => {
                 if (!sessionRef.current) return;
@@ -397,8 +474,8 @@ const UnifiedGame: React.FC = () => {
 
                 setGameState(prev => ({
                     ...prev,
-                    userGesture: userMove,
-                    aiGesture: aiMove,
+                    userGesture: userMove as any,
+                    aiGesture: aiMove as any,
                     winner: winner as any,
                     status: 'result'
                 }));
@@ -431,14 +508,72 @@ const UnifiedGame: React.FC = () => {
         }
     };
 
+    const handleManualMove = useCallback((move: 'rock' | 'paper' | 'scissors') => {
+        if (sessionRef.current && isConnected) {
+            if (inputMode === 'locked') {
+                setLastInputResult('too-early');
+                setTimeout(() => setLastInputResult(null), 1000);
+                return;
+            }
+            setLastInputResult('success');
+            setTimeout(() => setLastInputResult(null), 1000);
+            console.log("Manual Move Triggered:", move);
+            // Send text input to override/augment voice/video
+            sessionRef.current.sendRealtimeInput({ text: `User chose ${move}` });
+            // Optimistic UI update or just let the AI respond
+            setCommentary(`Manual Input: ${move.toUpperCase()}`);
+        }
+    }, [isConnected]);
+
+    // Keyboard Controls
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!isConnected) return;
+
+            // Prevent scrolling on Space
+            if (e.key === ' ') e.preventDefault();
+
+            switch (e.key.toLowerCase()) {
+                case 'a': handleManualMove('rock'); break;
+                case 's': handleManualMove('paper'); break;
+                case 'd': handleManualMove('scissors'); break;
+                case ' ': startRound(); break;
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isConnected, handleManualMove]);
+
     return (
         <div className="fixed inset-0 w-full h-full bg-black">
             {/* Use full screen video background */}
             <div className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden">
-                <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-60" />
+                <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 w-full h-full object-cover scale-x-[-1]" />
                 <canvas ref={canvasRef} className="hidden" />
 
                 {/* Scanner Overlay - Makes it clear the AI is "watching" */}
+                {/* Visual Feedback for Input Window */}
+                {inputMode === 'open' && (
+                    <div className="absolute inset-0 border-[20px] border-[#00ff00] animate-pulse pointer-events-none z-[110] opacity-50" />
+                )}
+
+                {/* Too Early / Timing Feedback */}
+                {lastInputResult === 'too-early' && (
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[120] pointer-events-none">
+                        <div className="bg-red-600 text-white px-8 py-4 rounded-xl font-black text-4xl animate-bounce border-4 border-white transform -rotate-12 shadow-2xl">
+                            TOO EARLY!
+                        </div>
+                    </div>
+                )}
+                {lastInputResult === 'success' && (
+                    <div className="absolute top-2/3 left-1/2 -translate-x-1/2 z-[120] pointer-events-none">
+                        <div className="text-green-400 font-mono text-xl animate-out fade-out slide-out-to-top-10 duration-1000">
+                            TIMING PERFECT
+                        </div>
+                    </div>
+                )}
+
                 {isConnected && (
                     <div className="absolute inset-0 z-10">
                         {/* Scanning Line */}
@@ -452,22 +587,18 @@ const UnifiedGame: React.FC = () => {
                     </div>
                 )}
 
-                {/* VISUALIZER & VOICE BADGE */}
-                {isConnected && (
-                    <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 z-20">
-                        {/* Waveform */}
-                        <canvas ref={visualizerRef} width={300} height={100} className="w-64 h-24" />
-
-                        {/* Badge */}
-                        <div className="flex items-center gap-2 bg-cyan-900/40 px-4 py-1 rounded-full border border-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.4)]">
-                            <span className="text-cyan-400 font-mono text-xs font-bold uppercase tracking-widest animate-pulse">
-                                VOICE REDUNDANCY ACTIVE
-                            </span>
+                {/* COUNTDOWN OVERLAY */}
+                {countdown !== null && (
+                    <div className="absolute inset-0 flex items-center justify-center z-[100] pointer-events-none">
+                        <div className="text-[200px] font-black italic text-white drop-shadow-[0_0_50px_rgba(255,0,0,0.8)] animate-in zoom-in-50 duration-300">
+                            {countdown}
                         </div>
                     </div>
                 )}
+
+
             </div>
-            <div className="absolute inset-0 w-full h-full pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_20%,black_90%)]"></div>
+            <div className="absolute inset-0 w-full h-full pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_50%,black_100%)] opacity-40"></div>
 
             {/* Error Display */}
             {error && (
@@ -586,6 +717,19 @@ const UnifiedGame: React.FC = () => {
             {/* Main HUD */}
             {isConnected && (
                 <div className="absolute inset-0 pt-24 md:pt-32 flex flex-col justify-between p-4 md:p-8">
+
+                    {/* HUMAN VISUALIZER (LEFT - BLUE) */}
+                    <div className="absolute bottom-32 left-8 md:left-16 z-[60] flex flex-col items-center gap-2 pointer-events-none">
+                        <canvas ref={visualizerRef} width={200} height={100} className="w-48 h-24" />
+                        <span className="text-[hsl(180,100%,50%)] font-mono text-xs tracking-widest text-shadow-glow">HUMAN SIGNAL</span>
+                    </div>
+
+                    {/* AI VISUALIZER (RIGHT - GREEN) */}
+                    <div className="absolute bottom-32 right-8 md:right-16 z-[60] flex flex-col items-center gap-2 pointer-events-none">
+                        <canvas ref={aiVisualizerRef} width={200} height={100} className="w-48 h-24 scale-x-[-1]" />
+                        <span className="text-green-500 font-mono text-xs tracking-widest text-shadow-glow">AI SIGNAL</span>
+                    </div>
+
                     {/* Status Bar (Ported from LiveGameUI) */}
                     <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-6 bg-black/60 px-6 py-2 rounded-full backdrop-blur-md border border-white/10 shadow-2xl">
                         <div className="flex items-center gap-2">
@@ -678,6 +822,10 @@ const UnifiedGame: React.FC = () => {
 
                     {/* Footer Comments */}
                     <div className="relative w-full max-w-4xl mx-auto flex flex-col items-center gap-4">
+
+
+
+
                         <div className="w-full bg-black/60 backdrop-blur-sm neon-glow rounded-xl p-4 overflow-hidden">
                             <div className="whitespace-nowrap overflow-hidden">
                                 <p className="text-2xl md:text-3xl font-mono tracking-widest text-[#00ff00] uppercase animate-pulse">
@@ -709,6 +857,28 @@ const UnifiedGame: React.FC = () => {
 
                             <button onClick={stopAllMedia} className="p-4 bg-red-900/50 border-2 border-red-500 text-white rounded-full hover:bg-red-800">
                                 <Square />
+                            </button>
+                        </div>
+
+                        {/* Manual Controls (ASD) */}
+                        <div className="flex gap-4 items-center justify-center mt-2 animate-in slide-in-from-bottom-4 fade-in duration-700 delay-300">
+                            <button onClick={() => handleManualMove('rock')} className="flex flex-col items-center group">
+                                <div className="w-12 h-12 bg-black/60 border border-[hsl(180,100%,50%)] rounded-lg flex items-center justify-center text-2xl group-active:scale-95 transition-transform shadow-[0_0_10px_rgba(0,255,255,0.2)] hover:bg-[hsl(180,100%,50%)]/20">
+                                    ✊
+                                </div>
+                                <span className="text-[hsl(180,100%,50%)] font-mono text-xs mt-1">A</span>
+                            </button>
+                            <button onClick={() => handleManualMove('paper')} className="flex flex-col items-center group">
+                                <div className="w-12 h-12 bg-black/60 border border-[hsl(180,100%,50%)] rounded-lg flex items-center justify-center text-2xl group-active:scale-95 transition-transform shadow-[0_0_10px_rgba(0,255,255,0.2)] hover:bg-[hsl(180,100%,50%)]/20">
+                                    ✋
+                                </div>
+                                <span className="text-[hsl(180,100%,50%)] font-mono text-xs mt-1">S</span>
+                            </button>
+                            <button onClick={() => handleManualMove('scissors')} className="flex flex-col items-center group">
+                                <div className="w-12 h-12 bg-black/60 border border-[hsl(180,100%,50%)] rounded-lg flex items-center justify-center text-2xl group-active:scale-95 transition-transform shadow-[0_0_10px_rgba(0,255,255,0.2)] hover:bg-[hsl(180,100%,50%)]/20">
+                                    ✌️
+                                </div>
+                                <span className="text-[hsl(180,100%,50%)] font-mono text-xs mt-1">D</span>
                             </button>
                         </div>
                     </div>
